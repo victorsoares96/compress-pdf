@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig",
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "noEmit": true,
+    "pretty": true
+  },
+  "exclude": ["node_modules/**"]
+}
