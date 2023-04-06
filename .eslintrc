@@ -46,6 +46,7 @@
       {
         "max": 3
       }
-    ]
+    ],
+    "@typescript-eslint/ban-ts-comment": "warn"
   }
 }
