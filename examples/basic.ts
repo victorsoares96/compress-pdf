@@ -3,7 +3,8 @@ import fs from 'fs';
 import compressPdf from '@/index';
 
 /**
- * After this run:
+ * Before run:
+ *
  * `npx compress-pdf --fetchBinaries [win32/linux]`
  * This will download properly binaries to your current os.
  */

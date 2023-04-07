@@ -31,7 +31,7 @@ import { compress } from 'compress-pdf';
 
 (async () => {
   const pdf = path.resolve(__dirname, 'A17_FlightPlan.pdf');
-  const buffer = await compressPdf(pdf);
+  const buffer = await compress(pdf);
 
   const compressedPdf = path.resolve(__dirname, 'compressed_pdf.pdf');
   await fs.promises.writeFile(compressedPdf, buffer);
