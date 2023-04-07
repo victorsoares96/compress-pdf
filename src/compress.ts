@@ -33,6 +33,8 @@ async function compress(file: string, options?: Options) {
   const readFile = await fs.promises.readFile(output);
   const buffer = Buffer.from(readFile);
 
+  await fs.unlinkSync(output);
+
   return buffer;
 }
 
