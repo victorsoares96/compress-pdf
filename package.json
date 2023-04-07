@@ -11,7 +11,6 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "prepare": "husky install",
-    "fetch-binaries": "node dist/fetch-binaries",
     "copy-json-files-to-dist": "copyfiles -u 1 src/**/*.json dist/",
     "style:format": "prettier \"*.{js,json,yml,yaml,md}\" \"src/**/*\" --write",
     "lint": "eslint --color --ext .ts \"src/**/*.+(ts)\"",
@@ -22,7 +21,7 @@
     "package": "npm run build && npm pack",
     "build": "tsup",
     "release": "npm run build && npm publish",
-    "release-local": "npm run build && npm link && echo [FINISH]: Run \"npm link lib-template\" to link the package to your project"
+    "release-local": "npm run build && npm link && echo [FINISH]: Run \"npm link compress-pdf\" to link the package to your project"
   },
   "publishConfig": {
     "access": "public"
@@ -33,15 +32,19 @@
   ],
   "keywords": [
     "library",
-    "template"
+    "compress-pdf",
+    "compress",
+    "pdf",
+    "optimize",
+    "reduce"
   ],
-  "repository": "https://github.com/victorsoares96/lib-template",
+  "repository": "https://github.com/victorsoares96/compress-pdf",
   "author": "Victor Soares <vitorsoares96@hotmail.com> (https://github.com/victorsoares96)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/victorsoares96/lib-template/issues"
+    "url": "https://github.com/victorsoares96/compress-pdf/issues"
   },
-  "homepage": "https://github.com/victorsoares96/lib-template#readme",
+  "homepage": "https://github.com/victorsoares96/compress-pdf#readme",
   "peerDependencies": {},
   "dependencies": {
     "lodash": "4.17.21",

@@ -21,7 +21,7 @@ yarn add compress-pdf
 ```tsx
 import path from 'path';
 import fs from 'fs';
-import compressPdf from 'compress-pdf';
+import { compress } from 'compress-pdf';
 
 /**
  * After this run:

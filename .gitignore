@@ -116,5 +116,6 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-# Binaries
-bin/gs
+# Ghostscript Binaries
+bin/gs/*
+!bin/gs/.gitkeep
