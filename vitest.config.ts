@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     logHeapUsage: true,
+    passWithNoTests: true,
     testTimeout: 10000,
     coverage: {
       enabled: true,
