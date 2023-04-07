@@ -23,7 +23,7 @@ function getGSModulePath(binPath: string, platform: NodeJS.Platform) {
   }
 
   if (platform === 'win32') {
-    gsModule = path.resolve(binPath, 'bin/gswin64c');
+    gsModule = path.resolve(binPath, 'bin/gswin64c.exe');
   }
 
   if (!fs.existsSync(gsModule)) {
