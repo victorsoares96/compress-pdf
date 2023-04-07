@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import https from 'https';
 import unzipper from 'unzipper';
+import request from 'request';
 import { version } from '../package.json';
 
 async function unzipFile(
@@ -28,56 +28,40 @@ async function downloadFile(
   url: string,
   filename: string
 ): Promise<string> {
-  if (fs.existsSync(destination)) {
-    throw new Error('File already exists');
+  let progress = 0;
+  let size = 0;
+
+  const output = path.resolve(destination, filename);
+
+  if (fs.existsSync(output)) {
+    throw new Error(`${filename} already exists in destination`);
   }
 
   const tmpPath = path.resolve(os.tmpdir(), filename);
 
-  fs.writeFileSync(tmpPath, '');
   const file = fs.createWriteStream(tmpPath);
 
-  function deleteFile() {
-    fs.unlinkSync(tmpPath);
-    process.exit();
-  }
-
-  const memoryUsage = [0];
-  let progress = 0;
-
-  process.on('SIGINT', deleteFile);
-
   return new Promise((resolve, reject) => {
-    const req = https.request(url, (res) => {
-      const size = Number(res.headers['content-length']);
-
-      res.on('data', (data) => {
+    request(url, undefined)
+      .on('response', (response) => {
+        size = Number(response.headers['content-length']);
+      })
+      .on('data', (data) => {
         file.write(data);
 
         progress += Buffer.byteLength(data);
 
         process.stdout.write(
-          `\rDownloading ${filename} ${Math.floor((progress / size) * 100)}%`
+          `\rDownloading ${filename} in ${output}, ${Math.floor(
+            (progress / size) * 100
+          )}%`
         );
-
-        memoryUsage.push(process.memoryUsage().heapUsed);
-      });
-
-      res.on('error', function (error) {
-        reject(error);
-        fs.unlinkSync(tmpPath);
-      });
-
-      res.on('end', async function () {
-        file.close();
-
-        await fs.promises.rename(tmpPath, destination);
-
-        resolve(destination);
-      });
-    });
-
-    req.end();
+      })
+      .on('close', async () => {
+        fs.renameSync(tmpPath, output);
+        resolve(output);
+      })
+      .on('error', (error) => reject(error));
   });
 }
 
@@ -87,6 +71,7 @@ export const GS_VERSION = '10.01.1';
 
 async function fetchBinaries(
   platform: NodeJS.Platform,
+  outputPath?: string,
   gsVersion = GS_VERSION
 ) {
   if (os.arch() !== 'x64') {
@@ -94,29 +79,25 @@ async function fetchBinaries(
   }
 
   if (platform === 'linux') {
-    const destination = path.resolve(__dirname, '../bin/gs');
-    const filename = `linux_${gsVersion}`;
+    const destination = outputPath || path.resolve(__dirname, '../bin/gs');
+    const filename = `linux_${gsVersion}.zip`;
+    const url = `${RELEASE_URL}/v${version}/gs_${gsVersion}_linux.zip`;
 
-    const file = await downloadFile(
-      destination,
-      `${RELEASE_URL}/v${version}/gs_${gsVersion}_linux.zip`,
-      filename
-    );
+    const file = await downloadFile(destination, url, filename);
 
     await unzipFile(file, destination, true);
+    return;
   }
 
   if (platform === 'win32') {
-    const destination = path.resolve(__dirname, '../bin/gs');
-    const filename = `windows_${gsVersion}`;
+    const destination = outputPath || path.resolve(__dirname, `../bin/gs`);
+    const filename = `windows_${gsVersion}.zip`;
+    const url = `${RELEASE_URL}/v${version}/gs_${gsVersion}_windows.zip`;
 
-    const file = await downloadFile(
-      destination,
-      `${RELEASE_URL}/v${version}/gs_${gsVersion}_windows.zip`,
-      filename
-    );
+    const file = await downloadFile(destination, url, filename);
 
     await unzipFile(file, destination, true);
+    return;
   }
 
   throw new Error(

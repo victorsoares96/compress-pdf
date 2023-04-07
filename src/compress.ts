@@ -18,8 +18,8 @@ const defaultOptions: Required<Options> = {
 
 async function compress(file: string, options?: Options) {
   const { resolution, compatibilityLevel, binPath } = defaults(
-    defaultOptions,
-    options
+    options,
+    defaultOptions
   );
 
   const output = path.resolve(os.tmpdir(), Date.now().toString());
