@@ -13,11 +13,12 @@ const exec = util.promisify(childProcess.exec);
 const defaultOptions: Required<Options> = {
   compatibilityLevel: 1.4,
   resolution: 'ebook',
+  imageQuality: 100,
   binPath: getBinPath(os.platform()),
 };
 
 async function compress(file: string, options?: Options) {
-  const { resolution, compatibilityLevel, binPath } = defaults(
+  const { resolution, imageQuality, compatibilityLevel, binPath } = defaults(
     options,
     defaultOptions
   );
@@ -26,7 +27,7 @@ async function compress(file: string, options?: Options) {
   const gsModule = getGSModulePath(binPath, os.platform());
 
   await exec(
-    `${gsModule} -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dNOPAUSE -dQUIET -dBATCH -sOutputFile=${output} ${file}`
+    `${gsModule} -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile=${output} ${file}`
   );
 
   const readFile = await fs.promises.readFile(output);
