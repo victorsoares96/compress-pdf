@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { GS_VERSION } from './fetch-binaries';
 
 function getGSModulePath(binPath: string, platform: NodeJS.Platform) {
   const arch = os.arch();

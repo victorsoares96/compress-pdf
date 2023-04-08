@@ -17,7 +17,7 @@ const defaultOptions: Required<Options> = {
   binPath: getBinPath(os.platform()),
 };
 
-async function compress(file: string, options?: Options) {
+async function compress(file: string | Buffer, options?: Options) {
   const { resolution, imageQuality, compatibilityLevel, binPath } = defaults(
     options,
     defaultOptions
@@ -26,16 +26,27 @@ async function compress(file: string, options?: Options) {
   const output = path.resolve(os.tmpdir(), Date.now().toString());
   const gsModule = getGSModulePath(binPath, os.platform());
 
-  await exec(
-    `${gsModule} -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile=${output} ${file}`
-  );
+  let command: string;
+  let tempFile: string | undefined;
+
+  if (typeof file === 'string') {
+    command = `${gsModule} -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile=${output} ${file}`;
+  } else {
+    tempFile = path.resolve(os.tmpdir(), (Date.now() * 2).toString());
+    await fs.promises.writeFile(tempFile, file);
+
+    command = `${gsModule} -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile=${output} ${tempFile}`;
+  }
+
+  await exec(command);
+
+  if (tempFile) await fs.unlinkSync(tempFile);
 
   const readFile = await fs.promises.readFile(output);
-  const buffer = Buffer.from(readFile);
 
-  await fs.unlinkSync(output);
+  await fs.unlinkSync(readFile);
 
-  return buffer;
+  return readFile;
 }
 
 export default compress;
