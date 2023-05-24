@@ -4,10 +4,6 @@ This library provides compress your PDFs using ghostscript
 
 ## Installation
 
-Download ghostscript binaries available in releases page inside this repository. Example name: `gs_10.01.linux/windows.zip` or run: `npx compress-pdf --fetchBinaries [win32/linux]` to download binaries to inside **lib_folder/bin/gs**
-
-Then, extract and appoint:
-
 ```sh
 npm install compress-pdf
 ```
@@ -22,12 +18,6 @@ yarn add compress-pdf
 import path from 'path';
 import fs from 'fs';
 import { compress } from 'compress-pdf';
-
-/**
- * After this run:
- * `npx compress-pdf --fetchBinaries [win32/linux]`
- * This will download properly binaries to your current os.
- */
 
 (async () => {
   const pdf = path.resolve(__dirname, 'A17_FlightPlan.pdf');
