@@ -34,7 +34,7 @@ async function downloadFile(
   const output = path.resolve(destination, filename);
 
   if (fs.existsSync(output)) {
-    throw new Error(`${filename} already exists in destination`);
+    return output;
   }
 
   const tmpPath = path.resolve(os.tmpdir(), filename);

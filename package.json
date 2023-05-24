@@ -1,6 +1,6 @@
 {
   "name": "compress-pdf",
-  "version": "0.3.2-beta",
+  "version": "0.3.2",
   "templateVersion": "1.3.0",
   "description": "An compress pdf library using ghostscript",
   "main": "dist/index.js",
@@ -19,10 +19,11 @@
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "type-check": "tsc --pretty --noEmit --skipLibCheck --esModuleInterop --resolveJsonModule",
-    "package": "npm run build && npm pack",
+    "package": "npm run build && npm pkg set scripts.postinstall='node dist/install' && npm pack && npm pkg set scripts.postinstall='node install'",
     "build": "tsup",
-    "release": "npm run build && npm publish",
-    "release-local": "npm run build && npm link && echo [FINISH]: Run \"npm link compress-pdf\" to link the package to your project"
+    "release": "npm run build && npm pkg set scripts.postinstall='node dist/install' && npm publish && npm pkg set scripts.postinstall='node install'",
+    "release-beta": "npm run build && npm pkg set scripts.postinstall='node dist/install' && npm publish --tag beta && npm pkg set scripts.postinstall='node install'",
+    "release-local": "npm run build && npm pkg set scripts.postinstall='node dist/install' && npm link && npm pkg set scripts.postinstall='node install' && echo [FINISH]: Run \"npm link compress-pdf\" to link the package to your project"
   },
   "publishConfig": {
     "access": "public"
@@ -46,7 +47,6 @@
     "url": "https://github.com/victorsoares96/compress-pdf/issues"
   },
   "homepage": "https://github.com/victorsoares96/compress-pdf#readme",
-  "peerDependencies": {},
   "dependencies": {
     "lodash": "4.17.21",
     "request": "2.88.2",
