@@ -34,7 +34,7 @@ async function downloadFile(
   const output = path.resolve(destination, filename);
 
   if (fs.existsSync(output)) {
-    throw new Error(`${filename} already exists in destination`);
+    return output;
   }
 
   const tmpPath = path.resolve(os.tmpdir(), filename);
@@ -51,11 +51,11 @@ async function downloadFile(
 
         progress += Buffer.byteLength(data);
 
-        process.stdout.write(
+        /* process.stdout.write(
           `\rDownloading ${filename} in ${output}, ${Math.floor(
             (progress / size) * 100
           )}%`
-        );
+        ); */
       })
       .on('close', async () => {
         fs.renameSync(tmpPath, output);
