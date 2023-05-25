@@ -14,14 +14,18 @@ const defaultOptions: Required<Options> = {
   compatibilityLevel: 1.4,
   resolution: 'ebook',
   imageQuality: 100,
+  gsModulePath: '',
   binPath: getBinPath(os.platform()),
 };
 
 async function compress(file: string | Buffer, options?: Options) {
-  const { resolution, imageQuality, compatibilityLevel, binPath } = defaults(
-    options,
-    defaultOptions
-  );
+  const {
+    resolution,
+    imageQuality,
+    compatibilityLevel,
+    binPath,
+    gsModulePath,
+  } = defaults(options, defaultOptions);
 
   const output = path.resolve(os.tmpdir(), Date.now().toString());
   const gsModule = getGSModulePath(binPath, os.platform());
@@ -30,13 +34,17 @@ async function compress(file: string | Buffer, options?: Options) {
   let tempFile: string | undefined;
 
   if (typeof file === 'string') {
-    command = `${gsModule} -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile=${output} ${file}`;
+    command = `${
+      gsModulePath || gsModule
+    } -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile=${output} ${file}`;
   } else {
     tempFile = path.resolve(os.tmpdir(), (Date.now() * 2).toString());
 
     await fs.promises.writeFile(tempFile, file);
 
-    command = `${gsModule} -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile=${output} ${tempFile}`;
+    command = `${
+      gsModulePath || gsModule
+    } -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile=${output} ${tempFile}`;
   }
 
   await exec(command);
