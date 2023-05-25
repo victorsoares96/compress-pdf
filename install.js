@@ -7,7 +7,7 @@ const util = require('util');
 const exec = util.promisify(childProcess.exec);
 
 (async () => {
-  if (fs.existsSync(path.resolve(__dirname, '../dist')) || !process.env.SKIP_BINARY_DOWNLOAD) {
+  if (fs.existsSync(path.resolve(__dirname, '../dist')) && !process.env.SKIP_BINARY_DOWNLOAD) {
     const fetchBinaries = require('./fetch-binaries');
     const gsPath = path.resolve(__dirname, '../bin/gs');
 
