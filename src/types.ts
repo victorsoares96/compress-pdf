@@ -6,6 +6,7 @@ export type Resolution =
   | 'default';
 
 export type Options = {
+  gsModulePath?: string;
   compatibilityLevel?: number;
   /**
    * Can be
