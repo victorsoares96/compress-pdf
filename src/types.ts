@@ -6,7 +6,6 @@ export type Resolution =
   | 'default';
 
 export type Options = {
-  gsModulePath?: string;
   compatibilityLevel?: number;
   /**
    * Can be
@@ -34,5 +33,5 @@ export type Options = {
    *
    * `You can download binaries in releases section inside any version of this repository.`
    */
-  binPath?: string;
+  gsModule?: string;
 };

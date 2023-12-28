@@ -12,6 +12,27 @@ npm install compress-pdf
 yarn add compress-pdf
 ```
 
+### 🚨 Install binaries
+
+**Ubuntu**
+
+```sh
+sudo apt-get install ghostscript -y
+```
+
+**MacOS**
+
+```sh
+brew install ghostscript
+```
+
+**Windows (Chocolatey)**
+
+```sh
+choco install ghostscript
+```
+or [download](https://ghostscript.com/releases/gsdnld.html) Ghostscript `.exe` installer
+
 ### Code Usage
 
 ```tsx
@@ -28,7 +49,7 @@ import { compress } from 'compress-pdf';
 })();
 ```
 
-## CLI Usage
+### CLI Usage
 
 ```
 npx compress-pdf --file [PDF_FILE] --output ./compressed.pdf
@@ -38,9 +59,31 @@ Options:
   --output [COMPRESSED_PDF_FILE] (REQUIRED)
   --resolution [ebook/printer/screen/prepress]
   --compatibilityLevel [NUMBER] The compatibility pdf level
-  --binPath [DIRECTORY] The directory of ghostscript binaries. Default is lib_folder/bin/gs
-  --fetchBinaries [win32/linux] Download binaries to default binaries path
+  --gsModule [FILE PATH] The directory of ghostscript binaries. Ex: /usr/bin/gs
 ```
+
+### Usage with Docker
+
+```dockerfile
+FROM node:18 AS build
+WORKDIR /src
+COPY package*.json ./
+RUN npm pkg set scripts.scriptname="true" && npm i
+COPY . .
+RUN npm run build
+
+FROM node:18
+WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y ghostscript
+COPY package*.json ./
+RUN npm pkg set scripts.scriptname="true" && npm i
+COPY --from=build /src/build /app/build/
+EXPOSE 8080
+CMD [ "npm", "start" ]
+```
+
+**OBS:** This is just an example of how to use this lib in a docker image, note that you need to run apt-get to install ghostscript before doing anything
 
 **You can see examples in [examples folder](https://github.com/victorsoares96/compress-pdf/tree/master/examples)**
 

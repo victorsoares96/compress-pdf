@@ -9,7 +9,7 @@ type CliOptions = {
   '--output': string;
   '--resolution'?: Resolution;
   '--compatibilityLevel'?: string;
-  '--binPath'?: string;
+  '--gsModule'?: string;
   '--fetchBinaries'?: NodeJS.Platform;
 };
 
@@ -31,10 +31,11 @@ type CliOptions = {
 
   if (
     process.argv.slice(2).some((arg) => arg.includes('help')) ||
+    process.argv.slice(2).some((arg) => arg.includes('-h')) ||
     process.argv.slice(2).length === 0
   ) {
     return console.log(
-      'USE: npx compress-pdf\n--file [PDF_FILE]\n--output [COMPRESSED_PDF_FILE]\n--resolution [ebook/printer/screen/prepress]\n--compatibilityLevel [NUMBER] The compatibility pdf level\n--binPath [DIRECTORY] The directory of ghostscript binaries\n--fetchBinaries [win32/linux] Download binaries to default binaries path'
+      'USE: npx compress-pdf\n--file [PDF_FILE]\n--output [COMPRESSED_PDF_FILE]\n--resolution [ebook/printer/screen/prepress]\n--compatibilityLevel [NUMBER] The compatibility pdf level\n--gsModule [FILE PATH] The ghostscript binary path. Ex: /usr/local/bin/gs'
     );
   }
 
@@ -54,7 +55,7 @@ type CliOptions = {
     compatibilityLevel: args['--compatibilityLevel']
       ? Number(args['--compatibilityLevel'])
       : undefined,
-    binPath: args['--binPath'],
+    gsModule: args['--gsModule'],
   });
 
   return fs.writeFileSync(args['--output'], buffer);
