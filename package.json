@@ -52,11 +52,11 @@
     "dotenv": "16.0.3",
     "lodash": "4.17.21",
     "request": "2.88.2",
-    "unzipper": "0.10.11"
+    "unzipper": "0.10.14"
   },
   "devDependencies": {
     "@types/request": "2.48.12",
-    "@types/unzipper": "0.10.5",
+    "@types/unzipper": "0.10.9",
     "@typescript-eslint/eslint-plugin": "5.62.0",
     "@typescript-eslint/parser": "5.62.0",
     "@vitest/coverage-istanbul": "0.34.6",
