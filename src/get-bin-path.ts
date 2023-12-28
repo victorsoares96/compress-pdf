@@ -1,12 +1,10 @@
-import path from 'path';
-
 function getBinPath(platform: NodeJS.Platform) {
   if (platform === 'linux') {
     return '/usr/bin/gs';
   }
 
   if (platform === 'win32') {
-    return path.resolve(__dirname, '../bin/gs/10.01.1_windows');
+    return 'gswin64c';
   }
 
   if (platform === 'darwin') {
