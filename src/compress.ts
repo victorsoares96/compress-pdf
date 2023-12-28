@@ -5,7 +5,6 @@ import os from 'os';
 import childProcess from 'child_process';
 import { defaults } from 'lodash';
 import getBinPath from './get-bin-path';
-import getGSModulePath from './get-gs-module-path';
 import type { Options } from './types';
 
 const exec = util.promisify(childProcess.exec);
@@ -14,21 +13,16 @@ const defaultOptions: Required<Options> = {
   compatibilityLevel: 1.4,
   resolution: 'ebook',
   imageQuality: 100,
-  gsModulePath: '',
-  binPath: getBinPath(os.platform()),
+  gsModule: getBinPath(os.platform()),
 };
 
 async function compress(file: string | Buffer, options?: Options) {
-  const {
-    resolution,
-    imageQuality,
-    compatibilityLevel,
-    binPath,
-    gsModulePath,
-  } = defaults(options, defaultOptions);
+  const { resolution, imageQuality, compatibilityLevel, gsModule } = defaults(
+    options,
+    defaultOptions
+  );
 
   const output = path.resolve(os.tmpdir(), Date.now().toString());
-  const gsModule = gsModulePath || getGSModulePath(binPath, os.platform());
 
   let command: string;
   let tempFile: string | undefined;
