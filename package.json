@@ -72,7 +72,7 @@
     "eslint-plugin-prettier": "4.2.1",
     "eslint-plugin-vitest": "0.3.20",
     "husky": "8.0.3",
-    "lint-staged": "13.3.0",
+    "lint-staged": "15.2.0",
     "prettier": "2.8.8",
     "tsup": "6.7.0",
     "tsx": "3.14.0",
