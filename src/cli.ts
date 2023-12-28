@@ -2,7 +2,6 @@
 import compress from '@/compress';
 import fs from 'fs';
 import type { Resolution } from './types';
-import fetchBinaries from './fetch-binaries';
 
 type CliOptions = {
   '--file': string;
@@ -10,7 +9,6 @@ type CliOptions = {
   '--resolution'?: Resolution;
   '--compatibilityLevel'?: string;
   '--gsModule'?: string;
-  '--fetchBinaries'?: NodeJS.Platform;
 };
 
 (async () => {
@@ -37,11 +35,6 @@ type CliOptions = {
     return console.log(
       'USE: npx compress-pdf\n--file [PDF_FILE]\n--output [COMPRESSED_PDF_FILE]\n--resolution [ebook/printer/screen/prepress]\n--compatibilityLevel [NUMBER] The compatibility pdf level\n--gsModule [FILE PATH] The ghostscript binary path. Ex: /usr/local/bin/gs'
     );
-  }
-
-  if (args['--fetchBinaries']) {
-    await fetchBinaries(args['--fetchBinaries']);
-    return null;
   }
 
   if (!args['--file'] || !args['--output']) {
