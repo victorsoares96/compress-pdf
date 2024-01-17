@@ -4893,10 +4893,10 @@ ts-node@^10.8.1:
     v8-compile-cache-lib "^3.0.1"
     yn "3.1.1"
 
-tsconfck@^2.1.0:
-  version "2.1.2"
-  resolved "https://registry.yarnpkg.com/tsconfck/-/tsconfck-2.1.2.tgz#f667035874fa41d908c1fe4d765345fcb1df6e35"
-  integrity sha512-ghqN1b0puy3MhhviwO2kGF8SeMDNhEbnKxjK7h6+fvY9JAxqvXi8y5NAHSQv687OVboS2uZIByzGd45/YxrRHg==
+tsconfck@^3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/tsconfck/-/tsconfck-3.0.1.tgz#803ca0ed8f2f2075639e4061238f04b99ba85e85"
+  integrity sha512-7ppiBlF3UEddCLeI1JRx5m2Ryq+xk4JrZuq4EuYXykipebaq1dV0Fhgr1hb7CkmHt32QSgOZlcqVLEtHBG4/mg==
 
 tsconfig-paths@^3.15.0:
   version "3.15.0"
@@ -5146,14 +5146,14 @@ vite-node@0.34.6:
     picocolors "^1.0.0"
     vite "^3.0.0 || ^4.0.0 || ^5.0.0-0"
 
-vite-tsconfig-paths@4.2.2:
-  version "4.2.2"
-  resolved "https://registry.yarnpkg.com/vite-tsconfig-paths/-/vite-tsconfig-paths-4.2.2.tgz#fee5a59c885687ae046e1d5a394bdcfdb12d9361"
-  integrity sha512-dq0FjyxHHDnp0uS3P12WEOX2W7NeuLzX9AWP38D7Zw2CTbFErapwQVlCiT5DMJcVWKQ1MMdTe92PZl/rBQ7qcw==
+vite-tsconfig-paths@4.3.1:
+  version "4.3.1"
+  resolved "https://registry.yarnpkg.com/vite-tsconfig-paths/-/vite-tsconfig-paths-4.3.1.tgz#28762938151e7c80aec9d70c57e65ddce43a576f"
+  integrity sha512-cfgJwcGOsIxXOLU/nELPny2/LUD/lcf1IbfyeKTv2bsupVbTH/xpFtdQlBmIP1GEK2CjjLxYhFfB+QODFAx5aw==
   dependencies:
     debug "^4.1.1"
     globrex "^0.1.2"
-    tsconfck "^2.1.0"
+    tsconfck "^3.0.1"
 
 "vite@^3.0.0 || ^4.0.0 || ^5.0.0-0", "vite@^3.1.0 || ^4.0.0 || ^5.0.0-0":
   version "5.0.10"
