@@ -33,7 +33,8 @@
           "**/*.test.ts",
           "**/*.spec.ts",
           "vitest.config.ts",
-          "tsup.config.ts"
+          "tsup.config.ts",
+          "**/__tests__/**"
         ]
       }
     ],
