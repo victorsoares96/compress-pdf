@@ -14,13 +14,19 @@ const defaultOptions: Required<Options> = {
   resolution: 'ebook',
   imageQuality: 100,
   gsModule: getBinPath(os.platform()),
+  pdfPassword: '',
+  removePasswordAfterCompression: false,
 };
 
 async function compress(file: string | Buffer, options?: Options) {
-  const { resolution, imageQuality, compatibilityLevel, gsModule } = defaults(
-    options,
-    defaultOptions
-  );
+  const {
+    resolution,
+    imageQuality,
+    compatibilityLevel,
+    gsModule,
+    pdfPassword,
+    removePasswordAfterCompression,
+  } = defaults(options, defaultOptions);
 
   const output = path.resolve(os.tmpdir(), Date.now().toString());
 
@@ -28,13 +34,37 @@ async function compress(file: string | Buffer, options?: Options) {
   let tempFile: string | undefined;
 
   if (typeof file === 'string') {
-    command = `${gsModule} -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile=${output} ${file}`;
+    command = `${gsModule} -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile=${output}`;
+
+    if (pdfPassword) {
+      command = command.concat(` -sPDFPassword=${pdfPassword}`);
+    }
+
+    if (!removePasswordAfterCompression) {
+      command = command.concat(
+        ` -sOwnerPassword=${pdfPassword} -sUserPassword=${pdfPassword}`
+      );
+    }
+
+    command = command.concat(` ${file}`);
   } else {
     tempFile = path.resolve(os.tmpdir(), (Date.now() * 2).toString());
 
     await fs.promises.writeFile(tempFile, file);
 
-    command = `${gsModule} -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile=${output} ${tempFile}`;
+    command = `${gsModule} -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile=${output}`;
+
+    if (pdfPassword) {
+      command = command.concat(` -sPDFPassword=${pdfPassword}`);
+    }
+
+    if (!removePasswordAfterCompression) {
+      command = command.concat(
+        ` -sOwnerPassword=${pdfPassword} -sUserPassword=${pdfPassword}`
+      );
+    }
+
+    command = command.concat(` ${tempFile}`);
   }
 
   await exec(command);

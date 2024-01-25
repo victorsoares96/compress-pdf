@@ -1,4 +1,3 @@
-import fs from 'fs';
 import type pdfParser from 'pdf-parse';
 
 // https://gitlab.com/autokent/pdf-parse/-/issues/24
@@ -6,16 +5,10 @@ import type pdfParser from 'pdf-parse';
 const PDFParser = require('pdf-parse');
 
 export async function parsePDF(
-  file: string | Buffer,
+  src: unknown,
   options?: pdfParser.Options
 ): Promise<pdfParser.Result> {
-  let dataBuffer: Buffer;
-
-  if (typeof file === 'string') {
-    dataBuffer = fs.readFileSync(file);
-  } else dataBuffer = file;
-
-  const data = await PDFParser(dataBuffer, options);
+  const data = await PDFParser(src, options);
 
   return data;
 }
