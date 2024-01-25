@@ -34,4 +34,12 @@ export type Options = {
    * `You can download binaries in releases section inside any version of this repository.`
    */
   gsModule?: string;
+  /**
+   * The pdf password
+   */
+  pdfPassword?: string;
+  /**
+   * Remove password of a protected pdf, after compression
+   */
+  removePasswordAfterCompression?: boolean;
 };
