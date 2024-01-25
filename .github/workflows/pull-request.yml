@@ -23,6 +23,11 @@ jobs:
       - name: Install dependencies
         run: yarn --frozen-lockfile
 
+      - name: Install apt dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ghostscript
+
       - name: Linting
         run: yarn lint
 
