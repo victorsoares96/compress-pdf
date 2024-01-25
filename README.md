@@ -64,6 +64,8 @@ Options:
   --resolution [ebook/printer/screen/prepress]
   --compatibilityLevel [NUMBER] The compatibility pdf level
   --gsModule [FILE PATH] The directory of ghostscript binaries. Ex: /usr/bin/gs
+  --pdfPassword The pdf password
+  --removePasswordAfterCompression [BOOLEAN] Remove pdf password after compression
 ```
 
 ### Usage with Docker

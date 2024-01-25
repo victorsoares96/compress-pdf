@@ -9,6 +9,8 @@ type CliOptions = {
   '--resolution'?: Resolution;
   '--compatibilityLevel'?: string;
   '--gsModule'?: string;
+  '--pdfPassword'?: string;
+  '--removePasswordAfterCompression'?: boolean;
 };
 
 (async () => {
@@ -33,7 +35,7 @@ type CliOptions = {
     process.argv.slice(2).length === 0
   ) {
     return console.log(
-      'USE: npx compress-pdf\n--file [PDF_FILE]\n--output [COMPRESSED_PDF_FILE]\n--resolution [ebook/printer/screen/prepress]\n--compatibilityLevel [NUMBER] The compatibility pdf level\n--gsModule [FILE PATH] The ghostscript binary path. Ex: /usr/local/bin/gs'
+      'USE: npx compress-pdf\n--file [PDF_FILE]\n--output [COMPRESSED_PDF_FILE]\n--resolution [ebook/printer/screen/prepress]\n--compatibilityLevel [NUMBER] The compatibility pdf level\n--gsModule [FILE PATH] The ghostscript binary path\n--pdfPassword The pdf password\n--removePasswordAfterCompression [BOOLEAN] Remove pdf password after compression\nEx: /usr/local/bin/gs'
     );
   }
 
@@ -49,6 +51,8 @@ type CliOptions = {
       ? Number(args['--compatibilityLevel'])
       : undefined,
     gsModule: args['--gsModule'],
+    pdfPassword: args['--pdfPassword'],
+    removePasswordAfterCompression: args['--removePasswordAfterCompression'],
   });
 
   return fs.writeFileSync(args['--output'], buffer);
