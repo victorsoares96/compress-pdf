@@ -2,6 +2,10 @@
 
 This library provides compress your PDFs using ghostscript
 
+### 🚨 Breaking Change 🚨
+
+From now on it is no longer possible to use the `--fetchBinaries` flag, the binaries must be obtained through the **Install binaries** step by step of this readme
+
 ## Installation
 
 ```sh
@@ -12,7 +16,7 @@ npm install compress-pdf
 yarn add compress-pdf
 ```
 
-### 🚨 Install binaries
+### Install binaries
 
 **Ubuntu**
 
