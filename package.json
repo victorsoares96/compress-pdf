@@ -59,7 +59,7 @@
     "@types/unzipper": "0.10.9",
     "@typescript-eslint/eslint-plugin": "6.19.1",
     "@typescript-eslint/parser": "6.19.1",
-    "@vitest/coverage-istanbul": "0.34.6",
+    "@vitest/coverage-istanbul": "1.2.1",
     "commitizen": "4.3.0",
     "commitizen-emoji": "1.0.5",
     "copyfiles": "2.4.1",
@@ -78,7 +78,7 @@
     "tsx": "4.7.0",
     "typescript": "5.3.3",
     "vite-tsconfig-paths": "4.3.1",
-    "vitest": "0.34.6"
+    "vitest": "1.2.1"
   },
   "engines": {
     "yarn": ">= 1.22.0",
