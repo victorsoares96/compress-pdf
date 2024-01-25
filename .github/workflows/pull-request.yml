@@ -37,12 +37,12 @@ jobs:
       - name: Unit Testing
         run: yarn test:coverage
 
-      - name: Upload Coverage
-        uses: codecov/codecov-action@v3
-        with:
-          token: ${{secrets.CODECOV_TOKEN}} # not required for public repos
-          directory: coverage
-          fail_ci_if_error: true
+#      - name: Upload Coverage
+#        uses: codecov/codecov-action@v3
+#        with:
+#          # token: ${{secrets.CODECOV_TOKEN}} # not required for public repos
+#          directory: coverage
+#          fail_ci_if_error: true
 
       - name: Build
         run: yarn build
