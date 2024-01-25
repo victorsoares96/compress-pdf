@@ -49,7 +49,7 @@
   },
   "homepage": "https://github.com/victorsoares96/compress-pdf#readme",
   "dependencies": {
-    "dotenv": "16.3.1",
+    "dotenv": "16.4.1",
     "lodash": "4.17.21",
     "request": "2.88.2",
     "unzipper": "0.10.14"
