@@ -9,16 +9,17 @@ import type { Options } from './types';
 
 const exec = util.promisify(childProcess.exec);
 
-const defaultOptions: Required<Options> = {
+const defaultOptions = async (): Promise<Required<Options>> => ({
   compatibilityLevel: 1.4,
   resolution: 'ebook',
   imageQuality: 100,
-  gsModule: getBinPath(os.platform()),
+  gsModule: await getBinPath(os.platform()),
   pdfPassword: '',
   removePasswordAfterCompression: false,
-};
+});
 
 async function compress(file: string | Buffer, options?: Options) {
+  const resolvedDefaultOptions = await defaultOptions();
   const {
     resolution,
     imageQuality,
@@ -26,7 +27,7 @@ async function compress(file: string | Buffer, options?: Options) {
     gsModule,
     pdfPassword,
     removePasswordAfterCompression,
-  } = defaults(options, defaultOptions);
+  } = defaults(options, resolvedDefaultOptions);
 
   const output = path.resolve(os.tmpdir(), Date.now().toString());
 
