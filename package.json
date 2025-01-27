@@ -55,8 +55,8 @@
   "devDependencies": {
     "@types/node": "20.17.16",
     "@types/pdf-parse": "1.1.4",
-    "@typescript-eslint/eslint-plugin": "6.19.1",
-    "@typescript-eslint/parser": "6.19.1",
+    "@typescript-eslint/eslint-plugin": "6.21.0",
+    "@typescript-eslint/parser": "6.21.0",
     "@vitest/coverage-istanbul": "1.6.0",
     "commitizen": "4.3.0",
     "commitizen-emoji": "1.0.5",
