@@ -53,7 +53,7 @@
     "lodash": "4.17.21"
   },
   "devDependencies": {
-    "@types/node": "20.11.6",
+    "@types/node": "20.17.16",
     "@types/pdf-parse": "1.1.4",
     "@typescript-eslint/eslint-plugin": "6.19.1",
     "@typescript-eslint/parser": "6.19.1",
