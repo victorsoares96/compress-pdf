@@ -42,7 +42,7 @@
       "error",
       { "prefer": "type-imports" }
     ],
-    "vitest/max-nested-describe": [
+    "@vitest/max-nested-describe": [
       "error",
       {
         "max": 3
