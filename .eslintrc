@@ -16,7 +16,7 @@
       }
     }
   },
-  "plugins": ["@typescript-eslint", "prettier", "vitest"],
+  "plugins": ["@typescript-eslint", "prettier", "@vitest"],
   "extends": [
     "airbnb-base",
     "airbnb-typescript/base",
@@ -42,7 +42,7 @@
       "error",
       { "prefer": "type-imports" }
     ],
-    "vitest/max-nested-describe": [
+    "@vitest/max-nested-describe": [
       "error",
       {
         "max": 3
