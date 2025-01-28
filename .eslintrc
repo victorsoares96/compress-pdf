@@ -16,7 +16,7 @@
       }
     }
   },
-  "plugins": ["@typescript-eslint", "prettier", "vitest"],
+  "plugins": ["@typescript-eslint", "prettier", "@vitest"],
   "extends": [
     "airbnb-base",
     "airbnb-typescript/base",
