@@ -58,7 +58,7 @@
     "@typescript-eslint/eslint-plugin": "6.21.0",
     "@typescript-eslint/parser": "6.21.0",
     "@vitest/coverage-istanbul": "1.6.0",
-    "commitizen": "4.3.0",
+    "commitizen": "4.3.1",
     "commitizen-emoji": "1.0.5",
     "copyfiles": "2.4.1",
     "eslint": "8.57.1",
