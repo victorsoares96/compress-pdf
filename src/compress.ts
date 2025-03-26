@@ -3,7 +3,7 @@ import util from 'util';
 import fs from 'fs';
 import os from 'os';
 import childProcess from 'child_process';
-import { defaults } from 'lodash';
+import defaults from 'lodash/defaults';
 import getBinPath from './get-bin-path';
 import type { Options } from './types';
 

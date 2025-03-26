@@ -1,3 +1,5 @@
+import { existsSync } from 'fs';
+
 function getBinPath(platform: NodeJS.Platform) {
   if (platform === 'linux') {
     return '/usr/bin/gs';
@@ -8,7 +10,9 @@ function getBinPath(platform: NodeJS.Platform) {
   }
 
   if (platform === 'darwin') {
-    return '/usr/local/bin/gs';
+    const brewPath = '/opt/homebrew/bin/gs';
+    const defaultPath = '/usr/local/bin/gs';
+    return existsSync(brewPath) ? brewPath : defaultPath;
   }
 
   throw new Error(
