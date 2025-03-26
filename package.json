@@ -41,7 +41,10 @@
     "optimize",
     "reduce"
   ],
-  "repository": "https://github.com/victorsoares96/compress-pdf",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/victorsoares96/compress-pdf.git"
+  },
   "author": "Victor Soares <vitorsoares96@hotmail.com> (https://github.com/victorsoares96)",
   "license": "MIT",
   "bugs": {
