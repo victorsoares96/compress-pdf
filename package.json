@@ -68,7 +68,7 @@
     "eslint-import-resolver-typescript": "3.7.0",
     "eslint-plugin-import": "2.31.0",
     "eslint-plugin-prettier": "5.2.5",
-    "@vitest/eslint-plugin": "1.0.1",
+    "@vitest/eslint-plugin": "1.1.38",
     "husky": "9.1.7",
     "lint-staged": "15.4.3",
     "pdf-parse": "1.1.1",
