@@ -57,7 +57,7 @@
     "@types/pdf-parse": "1.1.4",
     "@typescript-eslint/eslint-plugin": "6.21.0",
     "@typescript-eslint/parser": "6.21.0",
-    "@vitest/coverage-istanbul": "3.0.4",
+    "@vitest/coverage-istanbul": "3.0.9",
     "commitizen": "4.3.1",
     "commitizen-emoji": "1.0.5",
     "copyfiles": "2.4.1",
@@ -77,7 +77,7 @@
     "tsx": "4.19.2",
     "typescript": "5.7.3",
     "vite-tsconfig-paths": "4.3.2",
-    "vitest": "3.0.5"
+    "vitest": "3.0.9"
   },
   "engines": {
     "yarn": ">= 1.22.0",
