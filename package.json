@@ -57,7 +57,7 @@
   },
   "devDependencies": {
     "@types/node": "22.13.13",
-    "@types/pdf-parse": "1.1.4",
+    "@types/pdf-parse": "1.1.5",
     "@typescript-eslint/eslint-plugin": "6.21.0",
     "@typescript-eslint/parser": "6.21.0",
     "@vitest/coverage-istanbul": "3.0.9",
