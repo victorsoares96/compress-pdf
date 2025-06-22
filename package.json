@@ -60,7 +60,7 @@
     "@types/pdf-parse": "1.1.5",
     "@typescript-eslint/eslint-plugin": "6.21.0",
     "@typescript-eslint/parser": "6.21.0",
-    "@vitest/coverage-istanbul": "3.0.9",
+    "@vitest/coverage-istanbul": "3.2.4",
     "commitizen": "4.3.1",
     "commitizen-emoji": "1.0.5",
     "copyfiles": "2.4.1",
@@ -80,7 +80,7 @@
     "tsx": "4.19.3",
     "typescript": "5.8.3",
     "vite-tsconfig-paths": "5.1.4",
-    "vitest": "3.0.9"
+    "vitest": "3.2.4"
   },
   "engines": {
     "yarn": ">= 1.22.0",
