@@ -73,7 +73,7 @@
     "eslint-plugin-prettier": "5.2.5",
     "@vitest/eslint-plugin": "1.1.38",
     "husky": "9.1.7",
-    "lint-staged": "15.5.0",
+    "lint-staged": "15.5.2",
     "pdf-parse": "1.1.1",
     "prettier": "3.5.3",
     "tsup": "8.4.0",
