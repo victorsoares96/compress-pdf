@@ -4,6 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import childProcess from 'child_process';
 import defaults from 'lodash/defaults';
+import { randomUUID } from 'crypto';
 import getBinPath from './get-bin-path';
 import type { Options } from './types';
 
@@ -28,7 +29,7 @@ async function compress(file: string | Buffer, options?: Options) {
     removePasswordAfterCompression,
   } = defaults(options, defaultOptions);
 
-  const output = path.resolve(os.tmpdir(), Date.now().toString());
+  const output = path.resolve(os.tmpdir(), randomUUID());
 
   let command: string;
   let tempFile: string | undefined;
@@ -48,7 +49,7 @@ async function compress(file: string | Buffer, options?: Options) {
 
     command = command.concat(` ${file}`);
   } else {
-    tempFile = path.resolve(os.tmpdir(), (Date.now() * 2).toString());
+    tempFile = path.resolve(os.tmpdir(), randomUUID());
 
     await fs.promises.writeFile(tempFile, file);
 
