@@ -346,6 +346,11 @@
   resolved "https://registry.npmjs.org/@rollup/rollup-linux-x64-gnu/-/rollup-linux-x64-gnu-4.37.0.tgz"
   integrity sha512-pKivGpgJM5g8dwj0ywBwe/HeVAUSuVVJhUTa/URXjxvoyTT/AxsLTAbkHkDHG7qQxLoW2s3apEIl26uUe08LVQ==
 
+"@rollup/rollup-linux-x64-musl@4.37.0":
+  version "4.37.0"
+  resolved "https://registry.npmjs.org/@rollup/rollup-linux-x64-musl/-/rollup-linux-x64-musl-4.37.0.tgz"
+  integrity sha512-E2lPrLKE8sQbY/2bEkVTGDEk4/49UYRVWgj90MY8yPjpnGBQ+Xi1Qnr7b7UIWw1NOggdFQFOLZ8+5CzCiz143w==
+
 "@rtsao/scc@^1.1.0":
   version "1.1.0"
   resolved "https://registry.npmjs.org/@rtsao/scc/-/scc-1.1.0.tgz"
@@ -553,6 +558,11 @@
   version "1.9.1"
   resolved "https://registry.npmjs.org/@unrs/resolver-binding-linux-x64-gnu/-/resolver-binding-linux-x64-gnu-1.9.1.tgz"
   integrity sha512-/p77cGN/h9zbsfCseAP5gY7tK+7+DdM8fkPfr9d1ye1fsF6bmtGbtZN6e/8j4jCZ9NEIBBkT0GhdgixSelTK9g==
+
+"@unrs/resolver-binding-linux-x64-musl@1.9.1":
+  version "1.9.1"
+  resolved "https://registry.npmjs.org/@unrs/resolver-binding-linux-x64-musl/-/resolver-binding-linux-x64-musl-1.9.1.tgz"
+  integrity sha512-wInTqT3Bu9u50mDStEig1v8uxEL2Ht+K8pir/YhyyrM5ordJtxoqzsL1vR/CQzOJuDunUTrDkMM0apjW/d7/PA==
 
 "@vitest/coverage-istanbul@3.2.4":
   version "3.2.4"
