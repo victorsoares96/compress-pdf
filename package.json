@@ -9,23 +9,21 @@
   },
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
-  "scripts": {
-    "prepare": "husky install",
-    "postinstall": "node instructions.js",
-    "copy-json-files-to-dist": "copyfiles src/**/*.json instructions.js dist",
-    "style:format": "prettier \"*.{js,json,yml,yaml,md}\" \"src/**/*\" --write",
-    "lint": "eslint --color --ext .ts \"src/**/*.+(ts)\"",
-    "lint:fix": "eslint --color --ext .ts \"src/**/*.+(ts)\" --fix",
-    "test": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "type-check": "tsc --pretty --noEmit --skipLibCheck --esModuleInterop --resolveJsonModule",
-    "package": "npm run build && npm pkg set scripts.postinstall='node dist/instructions' && npm pack && npm pkg set scripts.postinstall='node instructions'",
-    "build": "tsup",
-    "ci-postbuild": "npm pkg set scripts.postinstall='node dist/instructions'",
-    "release": "npm run build && npm pkg set scripts.postinstall='node dist/instructions' && npm publish && npm pkg set scripts.postinstall='node instructions'",
-    "release-beta": "npm run build && npm pkg set scripts.postinstall='node dist/instructions' && npm publish --tag beta && npm pkg set scripts.postinstall='node instructions'",
-    "release-local": "npm run build && npm pkg set scripts.postinstall='node dist/instructions' && npm link && npm pkg set scripts.postinstall='node instructions' && echo [FINISH]: Run \"npm link compress-pdf\" to link the package to your project"
-  },
+"scripts": {
+  "prepare": "husky install",
+  "copy-json-files-to-dist": "copyfiles src/**/*.json dist",
+  "style:format": "prettier \"*.{js,json,yml,yaml,md}\" \"src/**/*\" --write",
+  "lint": "eslint --color --ext .ts \"src/**/*.+(ts)\"",
+  "lint:fix": "eslint --color --ext .ts \"src/**/*.+(ts)\" --fix",
+  "test": "vitest",
+  "test:coverage": "vitest run --coverage",
+  "type-check": "tsc --pretty --noEmit --skipLibCheck --esModuleInterop --resolveJsonModule",
+  "package": "npm run build && npm pack",
+  "build": "tsup",
+  "release": "npm run build && npm publish",
+  "release-beta": "npm run build && npm publish --tag beta",
+  "release-local": "npm run build && npm link && echo [FINISH]: Run \"npm link compress-pdf\" to link the package to your project"
+},
   "publishConfig": {
     "access": "public"
   },
