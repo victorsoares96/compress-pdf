@@ -47,8 +47,8 @@ async function compress(file: string | Buffer, options?: Options) {
       );
     }
 
-    command = command.concat(` ${file}`);
-  } else {
+    command = command.concat(`'${file.replace(/'/g, "'\\''")}'`);
+    } else {
     tempFile = path.resolve(os.tmpdir(), randomUUID());
 
     await fs.promises.writeFile(tempFile, file);
