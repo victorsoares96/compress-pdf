@@ -1,7 +1,7 @@
 "use strict";Object.defineProperty(exports, "__esModule", {value: true});
 
-var _chunkXLQZPV67js = require('./chunk-XLQZPV67.js');
+var _chunk4FLM4FMVjs = require('./chunk-4FLM4FMV.js');
 require('./chunk-WAK5WW37.js');
 
 
-exports.default = _chunkXLQZPV67js.compress_default;
+exports.default = _chunk4FLM4FMVjs.compress_default;

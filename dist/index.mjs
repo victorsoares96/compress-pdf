@@ -1,6 +1,6 @@
 import {
   compress_default
-} from "./chunk-4334ZAET.mjs";
+} from "./chunk-DNSLBWQ3.mjs";
 import {
   get_bin_path_default
 } from "./chunk-E5ODYKYQ.mjs";

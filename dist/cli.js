@@ -1,6 +1,6 @@
 "use strict"; function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-var _chunkXLQZPV67js = require('./chunk-XLQZPV67.js');
+var _chunk4FLM4FMVjs = require('./chunk-4FLM4FMV.js');
 require('./chunk-WAK5WW37.js');
 
 // src/cli.ts
@@ -26,7 +26,7 @@ var _fs = require('fs'); var _fs2 = _interopRequireDefault(_fs);
       "USE: npx compress-pdf --file [PDF_FILE] --output [COMPRESSED_PDF_FILE]"
     );
   }
-  const buffer = await _chunkXLQZPV67js.compress_default.call(void 0, args["--file"], {
+  const buffer = await _chunk4FLM4FMVjs.compress_default.call(void 0, args["--file"], {
     resolution: args["--resolution"] ? args["--resolution"] : void 0,
     compatibilityLevel: args["--compatibilityLevel"] ? Number(args["--compatibilityLevel"]) : void 0,
     gsModule: args["--gsModule"],
