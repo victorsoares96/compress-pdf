@@ -2,10 +2,6 @@
 
 This library provides compress your PDFs using ghostscript
 
-### 🚨 Breaking Change 🚨
-
-From now on it is no longer possible to use the `--fetchBinaries` flag, the binaries must be obtained through the **Install binaries** step by step of this readme
-
 ## Installation
 
 ```sh
@@ -16,7 +12,27 @@ npm install compress-pdf
 yarn add compress-pdf
 ```
 
-### Install binaries
+### Automatic Binary Installation
+
+Starting from version 0.5.6, **Ghostscript binaries are automatically downloaded and installed** during `npm install`, similar to how Puppeteer handles browser downloads. This means you can use the library right away without any additional setup! 🎉
+
+The installation script will:
+
+- Detect your operating system (Windows, macOS, or Linux)
+- Download the appropriate Ghostscript binaries
+- Extract them to the `bin/gs` folder within the package
+- Set proper executable permissions (on Unix-like systems)
+
+### Environment Variables
+
+You can control the binary installation behavior using environment variables:
+
+- **`COMPRESS_PDF_SKIP_DOWNLOAD=true`**: Skip automatic binary download during installation
+- **`COMPRESS_PDF_BIN_PATH=/path/to/gs`**: Use a custom Ghostscript binary path
+
+### Manual Installation (Optional)
+
+If you prefer to use system-installed Ghostscript or the automatic download fails, you can install Ghostscript manually:
 
 **Ubuntu**
 
@@ -35,6 +51,7 @@ brew install ghostscript
 ```sh
 choco install ghostscript
 ```
+
 or [download](https://ghostscript.com/releases/gsdnld.html) Ghostscript `.exe` installer
 
 ### Code Usage
@@ -70,11 +87,34 @@ Options:
 
 ### Usage with Docker
 
+**Option 1: Using Automatic Binary Download (Recommended)**
+
 ```dockerfile
 FROM node:18 AS build
 WORKDIR /src
 COPY package*.json ./
-RUN npm pkg set scripts.scriptname="true" && npm i
+RUN npm i
+COPY . .
+RUN npm run build
+
+FROM node:18
+WORKDIR /app
+COPY package*.json ./
+RUN npm i
+COPY --from=build /src/build /app/build/
+EXPOSE 8080
+CMD [ "npm", "start" ]
+```
+
+**Option 2: Using System Ghostscript**
+
+If you prefer to use system-installed Ghostscript, you can skip the automatic download:
+
+```dockerfile
+FROM node:18 AS build
+WORKDIR /src
+COPY package*.json ./
+RUN COMPRESS_PDF_SKIP_DOWNLOAD=true npm i
 COPY . .
 RUN npm run build
 
@@ -83,13 +123,11 @@ WORKDIR /app
 RUN apt-get update \
     && apt-get install -y ghostscript
 COPY package*.json ./
-RUN npm pkg set scripts.scriptname="true" && npm i
+RUN COMPRESS_PDF_SKIP_DOWNLOAD=true npm i
 COPY --from=build /src/build /app/build/
 EXPOSE 8080
 CMD [ "npm", "start" ]
 ```
-
-**OBS:** This is just an example of how to use this lib in a docker image, note that you need to run apt-get to install ghostscript before doing anything
 
 **You can see examples in [examples folder](https://github.com/victorsoares96/compress-pdf/tree/master/examples)**
 
