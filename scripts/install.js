@@ -12,7 +12,6 @@ const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 const { execSync } = require('child_process');
 
-const GHOSTSCRIPT_VERSION = 'v0.5.6';
 const BASE_URL = 'https://github.com/victorsoares96/compress-pdf/releases/download';
 
 // Environment variables to control installation
@@ -40,7 +39,7 @@ function getDownloadUrl() {
       throw new Error(`Unsupported platform: ${platform}`);
   }
   
-  return `${BASE_URL}/${GHOSTSCRIPT_VERSION}/${filename}`;
+  return `${BASE_URL}/binaries/${filename}`;
 }
 
 /**

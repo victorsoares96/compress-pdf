@@ -14,7 +14,7 @@ yarn add compress-pdf
 
 ### Automatic Binary Installation
 
-Starting from version 0.5.6, **Ghostscript binaries are automatically downloaded and installed** during `npm install`, similar to how Puppeteer handles browser downloads. This means you can use the library right away without any additional setup! 🎉
+Starting from version 0.6.0, **Ghostscript binaries are automatically downloaded and installed** during `npm install`, similar to how Puppeteer handles browser downloads. This means you can use the library right away without any additional setup! 🎉
 
 The installation script will:
 
