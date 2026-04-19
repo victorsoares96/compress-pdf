@@ -76,7 +76,7 @@
     "eslint-plugin-prettier": "5.5.4",
     "husky": "9.1.7",
     "lint-staged": "16.4.0",
-    "pdf-parse": "1.1.1",
+    "pdf-parse": "1.1.4",
     "prettier": "3.6.2",
     "tsup": "8.5.0",
     "tsx": "4.21.0",
