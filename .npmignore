@@ -1,0 +1,38 @@
+# Exclude downloaded Ghostscript binaries from npm package
+# The binaries will be downloaded during postinstall
+bin/gs/*
+!bin/gs/.gitkeep
+
+# Development files
+__tests__/
+examples/
+*.spec.ts
+*.test.ts
+.editorconfig
+.eslintignore
+.eslintrc
+.prettierignore
+.prettierrc
+tsconfig.json
+tsconfig.type-check.json
+tsup.config.ts
+vitest.config.ts
+lint-staged.config.js
+
+# Documentation (keep only essential)
+IMPLEMENTATION.md
+WARP.md
+
+# Git files
+.git
+.gitignore
+.github
+
+# Husky
+.husky
+
+# Build artifacts
+*.tgz
+
+# Logs
+*.log

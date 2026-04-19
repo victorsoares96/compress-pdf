@@ -35,7 +35,7 @@ async function compress(file: string | Buffer, options?: Options) {
   let tempFile: string | undefined;
 
   if (typeof file === 'string') {
-    command = `${gsModule} -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile=${output}`;
+    command = `"${gsModule}" -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile="${output}"`;
 
     if (pdfPassword) {
       command = command.concat(` -sPDFPassword=${pdfPassword}`);
@@ -47,13 +47,13 @@ async function compress(file: string | Buffer, options?: Options) {
       );
     }
 
-    command = command.concat(` '${file.replace(/'/g, "'\\''")}'`);
+    command = command.concat(` "${file.replace(/"/g, '\\"')}"`);
   } else {
     tempFile = path.resolve(os.tmpdir(), randomUUID());
 
     await fs.promises.writeFile(tempFile, file);
 
-    command = `${gsModule} -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile=${output}`;
+    command = `"${gsModule}" -q -dNOPAUSE -dBATCH -dSAFER -dSimulateOverprint=true -sDEVICE=pdfwrite -dCompatibilityLevel=${compatibilityLevel} -dPDFSETTINGS=/${resolution} -dEmbedAllFonts=true -dSubsetFonts=true -dAutoRotatePages=/None -dColorImageDownsampleType=/Bicubic -dColorImageResolution=${imageQuality} -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=${imageQuality} -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=${imageQuality} -sOutputFile="${output}"`;
 
     if (pdfPassword) {
       command = command.concat(` -sPDFPassword=${pdfPassword}`);
@@ -65,7 +65,7 @@ async function compress(file: string | Buffer, options?: Options) {
       );
     }
 
-    command = command.concat(` ${tempFile}`);
+    command = command.concat(` "${tempFile}"`);
   }
 
   await exec(command);
