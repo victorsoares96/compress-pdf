@@ -1,9 +1,12 @@
-export type Resolution =
-  | 'screen'
-  | 'ebook'
-  | 'printer'
-  | 'prepress'
-  | 'default';
+export const VALID_RESOLUTIONS = [
+  'screen',
+  'ebook',
+  'printer',
+  'prepress',
+  'default',
+] as const;
+
+export type Resolution = (typeof VALID_RESOLUTIONS)[number];
 
 export type Options = {
   compatibilityLevel?: number;
@@ -24,7 +27,8 @@ export type Options = {
    */
   resolution?: Resolution;
   /**
-   * Set quality of pdf images.
+   * Set quality of pdf images (DPI).
+   * Must be between 1 and 600.
    * Default is `100`
    */
   imageQuality?: number;
@@ -43,3 +47,32 @@ export type Options = {
    */
   removePasswordAfterCompression?: boolean;
 };
+
+/**
+ * Result of a PDF compression operation.
+ */
+export type CompressResult = {
+  /** The compressed PDF as a Buffer */
+  buffer: Buffer;
+  /** Original file size in bytes */
+  originalSize: number;
+  /** Compressed file size in bytes */
+  compressedSize: number;
+  /** Compression ratio (e.g., 0.65 means 35% smaller) */
+  compressionRatio: number;
+  /** Time taken in milliseconds */
+  duration: number;
+};
+
+/**
+ * Custom error class for compress-pdf errors.
+ */
+export class CompressPdfError extends Error {
+  constructor(
+    message: string,
+    public readonly cause?: unknown
+  ) {
+    super(message);
+    this.name = 'CompressPdfError';
+  }
+}

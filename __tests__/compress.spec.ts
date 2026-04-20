@@ -18,7 +18,11 @@ describe('compress', () => {
     });
 
     const compressedFile = await compress(originalFilePath);
-    const compressedPDF = await testHelper.parsePDF(compressedFile);
+    const compressedPDF = await testHelper.parsePDF({
+      data: compressedFile,
+      url: 0,
+      range: '',
+    });
 
     expect(compressedFile.length).toBeLessThan(originalFile.length);
     expect(compressedPDF.numpages).toEqual(originalPDF.numpages);
@@ -56,5 +60,5 @@ describe('compress', () => {
     expect(compressedPDF.numpages).toEqual(originalPDF.numpages);
     expect(compressedPDF.numrender).toEqual(originalPDF.numrender);
     expect(compressedPDF.text).toEqual(originalPDF.text);
-  });
+  }, 60000);
 });

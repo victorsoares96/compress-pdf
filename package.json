@@ -2,7 +2,7 @@
   "name": "compress-pdf",
   "version": "0.6.0",
   "templateVersion": "1.3.0",
-  "description": "An compress pdf library using ghostscript",
+  "description": "A PDF compression library using Ghostscript",
   "main": "dist/index.js",
   "bin": {
     "compress-pdf": "bin/compress-pdf"
@@ -41,7 +41,9 @@
     "compress",
     "pdf",
     "optimize",
-    "reduce"
+    "reduce",
+    "ghostscript",
+    "pdf-compression"
   ],
   "repository": {
     "type": "git",
@@ -53,10 +55,7 @@
     "url": "https://github.com/victorsoares96/compress-pdf/issues"
   },
   "homepage": "https://github.com/victorsoares96/compress-pdf#readme",
-  "dependencies": {
-    "dotenv": "17.4.2",
-    "lodash": "4.18.1"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "24.12.2",
     "@types/pdf-parse": "1.1.5",
