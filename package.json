@@ -66,7 +66,7 @@
     "commitizen": "4.3.1",
     "commitizen-emoji": "1.0.5",
     "copyfiles": "2.4.1",
-    "eslint": "8.57.1",
+    "eslint": "10.3.0",
     "eslint-config-airbnb-base": "15.0.0",
     "eslint-config-airbnb-typescript": "18.0.0",
     "eslint-config-prettier": "10.1.8",
