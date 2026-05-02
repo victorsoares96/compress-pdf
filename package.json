@@ -55,7 +55,6 @@
     "url": "https://github.com/victorsoares96/compress-pdf/issues"
   },
   "homepage": "https://github.com/victorsoares96/compress-pdf#readme",
-  "dependencies": {},
   "devDependencies": {
     "@types/node": "24.12.2",
     "@types/pdf-parse": "1.1.5",
