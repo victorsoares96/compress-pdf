@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import compress from '../src/compress';
+import type { Options } from '../src/types';
 import * as testHelper from './test.helper';
 
 describe('compress', () => {
@@ -29,6 +30,22 @@ describe('compress', () => {
     expect(compressedPDF.numrender).toEqual(originalPDF.numrender);
     expect(compressedPDF.text).toEqual(originalPDF.text);
   });
+
+  it('keeps defaults when optional fields are passed as undefined (e.g. from CLI)', async () => {
+    const originalFilePath = path.resolve(
+      __dirname,
+      '../examples/A17_FlightPlan.pdf'
+    );
+    const compressedFile = await compress(originalFilePath, {
+      resolution: undefined,
+      gsModule: undefined,
+      imageQuality: undefined,
+      compatibilityLevel: undefined,
+      pdfPassword: undefined,
+      removePasswordAfterCompression: undefined,
+    } as Options);
+    expect(compressedFile.length).toBeGreaterThan(100);
+  }, 60000);
 
   it('should compress a protected pdf file', async () => {
     const originalFilePath = path.resolve(

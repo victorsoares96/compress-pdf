@@ -7,6 +7,7 @@ export default defineConfig({
     logHeapUsage: true,
     passWithNoTests: true,
     testTimeout: 30000,
+    exclude: ['.worktrees/**', 'node_modules/**'],
     coverage: {
       enabled: true,
       clean: true,
@@ -14,6 +15,7 @@ export default defineConfig({
       all: true,
       extension: ['ts'],
       include: ['src/**/*.ts'],
+      exclude: ['.worktrees/**', '.claude/**', 'node_modules/**'],
     },
   },
   plugins: [tsconfigPaths()],

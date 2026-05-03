@@ -4,7 +4,7 @@ import fs from 'fs';
 import compress from '@/compress';
 import type { Resolution } from './types';
 
-const helpText = `
+export const helpText = `
 compress-pdf - Compress PDF files using Ghostscript
 
 Usage:
@@ -38,8 +38,13 @@ function getStringValue(
   return typeof value === 'string' ? value : undefined;
 }
 
-(async () => {
+/**
+ * Run the CLI with the given argument list (same shape as process.argv.slice(2)).
+ * Returns a process exit code (0 success, 1 error).
+ */
+export async function runCli(userArgs: readonly string[]): Promise<number> {
   const { values } = parseArgs({
+    args: [...userArgs],
     options: {
       file: { type: 'string', short: 'f' },
       output: { type: 'string', short: 'o' },
@@ -54,9 +59,9 @@ function getStringValue(
     strict: false,
   });
 
-  if (values.help || process.argv.slice(2).length === 0) {
+  if (values.help || userArgs.length === 0) {
     console.log(helpText);
-    process.exit(0);
+    return 0;
   }
 
   const file = getStringValue(values.file);
@@ -71,12 +76,12 @@ function getStringValue(
     console.error(
       'Error: --file and --output are required.\n\nRun with --help for usage information.'
     );
-    process.exit(1);
+    return 1;
   }
 
   if (!fs.existsSync(file)) {
     console.error(`Error: File not found: ${file}`);
-    process.exit(1);
+    return 1;
   }
 
   try {
@@ -102,10 +107,11 @@ function getStringValue(
     console.log(`   ${originalKB} KB → ${compressedKB} KB (${ratio}% smaller)`);
     console.log(`   Time: ${result.duration}ms`);
     console.log(`   Output: ${output}`);
+    return 0;
   } catch (error) {
     console.error(
       `❌ Compression failed: ${error instanceof Error ? error.message : String(error)}`
     );
-    process.exit(1);
+    return 1;
   }
-})();
+}

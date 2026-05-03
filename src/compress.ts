@@ -14,6 +14,17 @@ import {
 
 const execFile = util.promisify(childProcess.execFile);
 
+/**
+ * Strip undefined entries so `{ ...defaults, ...options }` does not overwrite
+ * defaults (e.g. CLI passes `resolution: undefined` and would clear `ebook`).
+ */
+function definedOptions(options?: Options): Partial<Options> {
+  if (!options) return {};
+  return Object.fromEntries(
+    Object.entries(options).filter((entry) => entry[1] !== undefined)
+  ) as Partial<Options>;
+}
+
 const defaultOptions: Required<Options> = {
   compatibilityLevel: 1.4,
   resolution: 'ebook',
@@ -123,7 +134,10 @@ async function safeUnlink(filePath: string): Promise<void> {
 async function compress(file: string | Buffer, options?: Options) {
   const startTime = Date.now();
 
-  const mergedOptions: Required<Options> = { ...defaultOptions, ...options };
+  const mergedOptions: Required<Options> = {
+    ...defaultOptions,
+    ...definedOptions(options),
+  };
 
   validateOptions(mergedOptions);
 
