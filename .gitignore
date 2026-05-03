@@ -121,3 +121,6 @@ dist
 # Ghostscript Binaries
 bin/gs/*
 !bin/gs/.gitkeep
+
+# Git worktrees
+.worktrees/
