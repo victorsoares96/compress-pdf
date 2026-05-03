@@ -1,208 +1,138 @@
-import path from 'path';
-import util from 'util';
 import fs from 'fs';
-import os from 'os';
-import childProcess from 'child_process';
-import { randomUUID } from 'crypto';
-import getBinPath from './get-bin-path';
-import {
-  VALID_RESOLUTIONS,
-  CompressPdfError,
-  type Options,
-  type CompressResult,
-} from './types';
-
-const execFile = util.promisify(childProcess.execFile);
-
-const defaultOptions: Required<Options> = {
-  compatibilityLevel: 1.4,
-  resolution: 'ebook',
-  imageQuality: 100,
-  gsModule: getBinPath(os.platform()),
-  pdfPassword: '',
-  removePasswordAfterCompression: false,
-};
+import { PDFDocument, PDFRawStream, PDFName, PDFNumber } from 'pdf-lib';
+import { VALID_RESOLUTIONS, CompressPdfError, type Options, type CompressResult } from './types';
+import { applyOptions } from './pdf/presets';
+import { loadPdf, savePdf } from './pdf/parser';
+import { optimizeJpegStream } from './pdf/image-optimizer';
+import { optimizeFlateStream } from './pdf/stream-optimizer';
 
 /**
- * Validate compression options before executing.
+ * Validate compression options.
+ * @throws {CompressPdfError} if any option value is out of range.
  */
-function validateOptions(opts: Required<Options>): void {
-  if (
-    !VALID_RESOLUTIONS.includes(
-      opts.resolution as (typeof VALID_RESOLUTIONS)[number]
-    )
-  ) {
+function validateOptions(options?: Options): void {
+  if (options?.resolution !== undefined && !VALID_RESOLUTIONS.includes(options.resolution)) {
     throw new CompressPdfError(
-      `Invalid resolution "${opts.resolution}". Must be one of: ${VALID_RESOLUTIONS.join(', ')}`
+      `Invalid resolution "${options.resolution}". Must be one of: ${VALID_RESOLUTIONS.join(', ')}`
     );
   }
 
-  if (opts.imageQuality < 1 || opts.imageQuality > 600) {
-    throw new CompressPdfError(
-      `imageQuality must be between 1 and 600, got ${opts.imageQuality}`
-    );
-  }
-
-  if (opts.compatibilityLevel < 1 || opts.compatibilityLevel > 2) {
-    throw new CompressPdfError(
-      `compatibilityLevel must be between 1.0 and 2.0, got ${opts.compatibilityLevel}`
-    );
-  }
-}
-
-/**
- * Build the Ghostscript arguments array.
- * Using an array (for execFile) instead of a string (for exec)
- * prevents command injection vulnerabilities.
- */
-function buildGsArgs(options: {
-  output: string;
-  inputFile: string;
-  compatibilityLevel: number;
-  resolution: string;
-  imageQuality: number;
-  pdfPassword: string;
-  removePasswordAfterCompression: boolean;
-}): string[] {
-  const args: string[] = [
-    '-q',
-    '-dNOPAUSE',
-    '-dBATCH',
-    '-dSAFER',
-    '-dSimulateOverprint=true',
-    '-sDEVICE=pdfwrite',
-    `-dCompatibilityLevel=${options.compatibilityLevel}`,
-    `-dPDFSETTINGS=/${options.resolution}`,
-    '-dEmbedAllFonts=true',
-    '-dSubsetFonts=true',
-    '-dAutoRotatePages=/None',
-    '-dColorImageDownsampleType=/Bicubic',
-    `-dColorImageResolution=${options.imageQuality}`,
-    '-dGrayImageDownsampleType=/Bicubic',
-    `-dGrayImageResolution=${options.imageQuality}`,
-    '-dMonoImageDownsampleType=/Bicubic',
-    `-dMonoImageResolution=${options.imageQuality}`,
-    `-sOutputFile=${options.output}`,
-  ];
-
-  if (options.pdfPassword) {
-    args.push(`-sPDFPassword=${options.pdfPassword}`);
-  }
-
-  if (options.pdfPassword && !options.removePasswordAfterCompression) {
-    args.push(
-      `-sOwnerPassword=${options.pdfPassword}`,
-      `-sUserPassword=${options.pdfPassword}`
-    );
-  }
-
-  args.push(options.inputFile);
-
-  return args;
-}
-
-/**
- * Safely remove a file, ignoring errors if it doesn't exist.
- */
-async function safeUnlink(filePath: string): Promise<void> {
-  try {
-    await fs.promises.unlink(filePath);
-  } catch {
-    // Ignore errors (file may not exist)
-  }
-}
-
-/**
- * Compress a PDF file using Ghostscript.
- *
- * @param file - Path to the PDF file or a Buffer containing the PDF data.
- * @param options - Compression options.
- * @returns A CompressResult with the compressed buffer and metadata,
- *          or just the Buffer for backward compatibility when destructured.
- */
-async function compress(file: string | Buffer, options?: Options) {
-  const startTime = Date.now();
-
-  const mergedOptions: Required<Options> = { ...defaultOptions, ...options };
-
-  validateOptions(mergedOptions);
-
-  const {
-    resolution,
-    imageQuality,
-    compatibilityLevel,
-    gsModule,
-    pdfPassword,
-    removePasswordAfterCompression,
-  } = mergedOptions;
-
-  // Validate that source file exists (when path is provided)
-  if (typeof file === 'string' && !fs.existsSync(file)) {
-    throw new CompressPdfError(`File not found: ${file}`);
-  }
-
-  const output = path.resolve(os.tmpdir(), `compress-pdf-${randomUUID()}`);
-  let tempFile: string | undefined;
-
-  try {
-    let inputFile: string;
-
-    if (typeof file === 'string') {
-      inputFile = file;
-    } else {
-      tempFile = path.resolve(os.tmpdir(), `compress-pdf-${randomUUID()}`);
-      await fs.promises.writeFile(tempFile, file);
-      inputFile = tempFile;
-    }
-
-    const args = buildGsArgs({
-      output,
-      inputFile,
-      compatibilityLevel,
-      resolution,
-      imageQuality,
-      pdfPassword,
-      removePasswordAfterCompression,
-    });
-
-    try {
-      await execFile(gsModule, args);
-    } catch (error) {
+  if (options?.imageDpi !== undefined) {
+    if (options.imageDpi < 1 || options.imageDpi > 600) {
       throw new CompressPdfError(
-        `Ghostscript failed to compress the PDF. ${error instanceof Error ? error.message : String(error)}`,
-        error
+        `imageDpi must be between 1 and 600, got ${options.imageDpi}`
       );
     }
-
-    const compressedBuffer = await fs.promises.readFile(output);
-
-    const originalSize =
-      typeof file === 'string'
-        ? (await fs.promises.stat(file)).size
-        : file.length;
-
-    const duration = Date.now() - startTime;
-    const compressedSize = compressedBuffer.length;
-    const compressionRatio =
-      originalSize > 0 ? compressedSize / originalSize : 0;
-
-    // Attach metadata as non-enumerable properties for backward compatibility.
-    // The return value is still a Buffer (works with writeFile, etc.),
-    // but you can access .originalSize, .compressedSize, .compressionRatio, .duration.
-    Object.defineProperties(compressedBuffer, {
-      buffer: { value: compressedBuffer, enumerable: false },
-      originalSize: { value: originalSize, enumerable: false },
-      compressedSize: { value: compressedSize, enumerable: false },
-      compressionRatio: { value: compressionRatio, enumerable: false },
-      duration: { value: duration, enumerable: false },
-    });
-
-    return compressedBuffer as Buffer & CompressResult;
-  } finally {
-    // Always clean up temporary files, even on error
-    if (tempFile) await safeUnlink(tempFile);
-    await safeUnlink(output);
   }
+
+  if (options?.jpegQuality !== undefined) {
+    if (options.jpegQuality < 0 || options.jpegQuality > 100) {
+      throw new CompressPdfError(
+        `jpegQuality must be between 0 and 100, got ${options.jpegQuality}`
+      );
+    }
+  }
+}
+
+/**
+ * Compress a PDF file using a pure WASM/JS pipeline (no Ghostscript).
+ *
+ * @param input - Path to the PDF file or a Buffer containing the PDF data.
+ * @param options - Compression options.
+ * @returns A Buffer with CompressResult metadata attached.
+ */
+async function compress(
+  input: string | Buffer,
+  options?: Options
+): Promise<Buffer & CompressResult> {
+  const startTime = Date.now();
+
+  // 1. Validate options first (before any I/O)
+  validateOptions(options);
+
+  // 2. Input handling
+  let inputBuffer: Buffer;
+  if (typeof input === 'string') {
+    inputBuffer = await fs.promises.readFile(input);
+  } else {
+    inputBuffer = input;
+  }
+
+  // 3. Load PDF
+  const doc = await loadPdf(inputBuffer, options?.pdfPassword);
+
+  // 4. Get preset
+  const preset = applyOptions(options ?? {});
+
+  // 5. Optimize streams (skip for encrypted PDFs — stream bytes are still
+  //    encrypted after ignoreEncryption:true load, so optimizers return null
+  //    anyway; iterating also causes pdf-lib to log "Invalid object ref" noise
+  //    and can corrupt the saved cross-reference table).
+  for (const [, obj] of doc.isEncrypted ? [] : doc.context.enumerateIndirectObjects()) {
+    if (!(obj instanceof PDFRawStream)) continue;
+
+    const dict = obj.dict;
+    const filter = dict.get(PDFName.of('Filter'));
+    const subtype = dict.get(PDFName.of('Subtype'));
+
+    if (!(filter instanceof PDFName)) continue;
+
+    const filterName = filter.asString();
+    const streamBytes = obj.contents;
+
+    if (filterName === 'DCTDecode') {
+      // Only optimize image XObjects
+      const isImage = subtype instanceof PDFName && subtype.asString() === 'Image';
+      if (!isImage) continue;
+
+      const widthObj = dict.get(PDFName.of('Width'));
+      const heightObj = dict.get(PDFName.of('Height'));
+      const width = widthObj instanceof PDFNumber ? widthObj.asNumber() : 0;
+      const height = heightObj instanceof PDFNumber ? heightObj.asNumber() : 0;
+
+      const optimized = await optimizeJpegStream(streamBytes, {
+        targetDpi: preset.dpi,
+        jpegQuality: preset.jpegQuality,
+        currentWidthPx: width,
+        currentHeightPx: height,
+        pageWidthPt: 612, // US Letter fallback
+      });
+
+      if (optimized !== null) {
+        (obj as unknown as { contents: Uint8Array }).contents = optimized;
+        dict.set(PDFName.of('Length'), PDFNumber.of(optimized.length));
+      }
+    } else if (filterName === 'FlateDecode') {
+      const optimized = optimizeFlateStream(streamBytes);
+
+      if (optimized !== null) {
+        (obj as unknown as { contents: Uint8Array }).contents = optimized;
+        dict.set(PDFName.of('Length'), PDFNumber.of(optimized.length));
+      }
+    }
+  }
+
+  // 6. Save
+  const saved = await savePdf(doc, {
+    removePassword: options?.removePasswordAfterCompression,
+  });
+
+  // 7. Build result
+  const result = Buffer.from(saved) as Buffer & CompressResult;
+  const originalSize = inputBuffer.length;
+  const compressedSize = result.length;
+  const compressionRatio = compressedSize / originalSize;
+  const duration = Date.now() - startTime;
+
+  Object.defineProperties(result, {
+    buffer: { value: result, enumerable: false, writable: false, configurable: true },
+    originalSize: { value: originalSize, enumerable: false, writable: false, configurable: true },
+    compressedSize: { value: compressedSize, enumerable: false, writable: false, configurable: true },
+    compressionRatio: { value: compressionRatio, enumerable: false, writable: false, configurable: true },
+    duration: { value: duration, enumerable: false, writable: false, configurable: true },
+  });
+
+  return result;
 }
 
 export default compress;

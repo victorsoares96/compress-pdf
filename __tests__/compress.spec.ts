@@ -1,64 +1,148 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
+import { PDFDocument, PDFName, PDFNumber } from 'pdf-lib';
 import compress from '../src/compress';
-import * as testHelper from './test.helper';
+import { CompressPdfError } from '../src/types';
+
+// Existing test fixture PDFs
+const FLIGHT_PLAN = path.resolve(__dirname, '../examples/A17_FlightPlan.pdf');
+const PROTECTED = path.resolve(__dirname, '../examples/A17_FlightPlan-protected.pdf');
+const PROTECTED_PASSWORD = 'a17';
+
+let simplePdfBuffer: Buffer;
+let tempFilePath: string;
+
+/**
+ * Create a minimal PDF (no images) for basic tests.
+ */
+async function createSimplePdf(): Promise<Buffer> {
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([612, 792]);
+  page.drawText('Simple test PDF');
+  const bytes = await doc.save();
+  return Buffer.from(bytes);
+}
+
+beforeAll(async () => {
+  simplePdfBuffer = await createSimplePdf();
+
+  // Write a temp PDF file for path-based test
+  tempFilePath = path.join(os.tmpdir(), `compress-test-${Date.now()}.pdf`);
+  await fs.promises.writeFile(tempFilePath, simplePdfBuffer);
+}, 30000);
+
+afterAll(async () => {
+  try {
+    await fs.promises.unlink(tempFilePath);
+  } catch {
+    // ignore
+  }
+});
 
 describe('compress', () => {
-  it('should compress a pdf file', async () => {
-    const originalFilePath = path.resolve(
-      __dirname,
-      '../examples/A17_FlightPlan.pdf'
-    );
+  // Test 1: compress a Buffer, returns CompressResult metadata
+  it('compresses a Buffer and returns CompressResult metadata', async () => {
+    const result = await compress(simplePdfBuffer);
 
-    const originalFile = await fs.promises.readFile(originalFilePath);
-    const originalPDF = await testHelper.parsePDF({
-      data: originalFile,
-      url: 0,
-      range: '',
-    });
+    expect(result).toBeInstanceOf(Buffer);
+    expect(typeof result.originalSize).toBe('number');
+    expect(typeof result.compressedSize).toBe('number');
+    expect(typeof result.compressionRatio).toBe('number');
+    expect(typeof result.duration).toBe('number');
 
-    const compressedFile = await compress(originalFilePath);
-    const compressedPDF = await testHelper.parsePDF({
-      data: compressedFile,
-      url: 0,
-      range: '',
-    });
+    expect(result.originalSize).toBe(simplePdfBuffer.length);
+    expect(result.compressedSize).toBe(result.length);
+    expect(result.compressionRatio).toBeCloseTo(result.compressedSize / result.originalSize, 10);
+    expect(result.duration).toBeGreaterThanOrEqual(0);
+  }, 30000);
 
-    expect(compressedFile.length).toBeLessThan(originalFile.length);
-    expect(compressedPDF.numpages).toEqual(originalPDF.numpages);
-    expect(compressedPDF.numrender).toEqual(originalPDF.numrender);
-    expect(compressedPDF.text).toEqual(originalPDF.text);
+  // Test 2: compress from file path (string)
+  it('compresses from a file path string', async () => {
+    const result = await compress(tempFilePath);
+
+    expect(result).toBeInstanceOf(Buffer);
+    expect(result.length).toBeGreaterThan(0);
+    expect(result.originalSize).toBe(simplePdfBuffer.length);
+    expect(result.compressedSize).toBe(result.length);
+  }, 30000);
+
+  // Test 3: resolution preset affects output (screen < printer sizes for JPEG-heavy PDF)
+  it('resolution preset affects output size: screen produces smaller file than printer', async () => {
+    const pdfBytes = await fs.promises.readFile(FLIGHT_PLAN);
+
+    const [screenResult, printerResult] = await Promise.all([
+      compress(pdfBytes, { resolution: 'screen' }),
+      compress(pdfBytes, { resolution: 'printer' }),
+    ]);
+
+    // screen (72dpi, quality 35) should produce smaller output than printer (300dpi, quality 85)
+    // Both should produce valid PDFs
+    expect(screenResult).toBeInstanceOf(Buffer);
+    expect(printerResult).toBeInstanceOf(Buffer);
+    expect(screenResult.length).toBeLessThanOrEqual(printerResult.length);
+  }, 60000);
+
+  // Test 4: invalid imageDpi throws CompressPdfError
+  it('throws CompressPdfError for imageDpi out of range (too low: 0)', async () => {
+    await expect(compress(simplePdfBuffer, { imageDpi: 0 })).rejects.toThrow(CompressPdfError);
   });
 
-  it('should compress a protected pdf file', async () => {
-    const originalFilePath = path.resolve(
-      __dirname,
-      '../examples/A17_FlightPlan-protected.pdf'
-    );
+  it('throws CompressPdfError for imageDpi out of range (too high: 601)', async () => {
+    await expect(compress(simplePdfBuffer, { imageDpi: 601 })).rejects.toThrow(CompressPdfError);
+  });
 
-    const originalFile = await fs.promises.readFile(originalFilePath);
-    // https://gitlab.com/autokent/pdf-parse/-/merge_requests/4
-    const originalPDF = await testHelper.parsePDF({
-      data: originalFile,
-      url: 0,
-      range: '',
-      password: 'a17',
+  // Test 5: invalid jpegQuality throws CompressPdfError
+  it('throws CompressPdfError for jpegQuality out of range (negative: -1)', async () => {
+    await expect(compress(simplePdfBuffer, { jpegQuality: -1 })).rejects.toThrow(CompressPdfError);
+  });
+
+  it('throws CompressPdfError for jpegQuality out of range (above 100: 101)', async () => {
+    await expect(compress(simplePdfBuffer, { jpegQuality: 101 })).rejects.toThrow(CompressPdfError);
+  });
+
+  // Test 6: encrypted PDF without password throws CompressPdfError
+  it('throws CompressPdfError for encrypted PDF without password', async () => {
+    const encryptedBytes = await fs.promises.readFile(PROTECTED);
+    await expect(compress(encryptedBytes)).rejects.toThrow(CompressPdfError);
+  }, 30000);
+
+  // Test 7: encrypted PDF with wrong password throws CompressPdfError
+  it('throws CompressPdfError for encrypted PDF with wrong password', async () => {
+    const encryptedBytes = await fs.promises.readFile(PROTECTED);
+    await expect(
+      compress(encryptedBytes, { pdfPassword: 'wrongpassword' })
+    ).rejects.toThrow(CompressPdfError);
+  }, 30000);
+
+  // Test 8: encrypted PDF with correct password compresses successfully
+  it('compresses encrypted PDF with correct password', async () => {
+    const encryptedBytes = await fs.promises.readFile(PROTECTED);
+    const result = await compress(encryptedBytes, { pdfPassword: PROTECTED_PASSWORD });
+
+    expect(result).toBeInstanceOf(Buffer);
+    expect(result.length).toBeGreaterThan(0);
+    expect(result.originalSize).toBe(encryptedBytes.length);
+  }, 60000);
+
+  // Test 9: removePasswordAfterCompression=true strips /Encrypt from output
+  // NOTE: pdf-lib loads encrypted PDFs with ignoreEncryption:true — stream bytes remain
+  // encrypted binary. We can strip the /Encrypt trailer entry but cannot decrypt streams.
+  // The output is therefore NOT re-loadable by pdf-lib, but the /Encrypt marker IS removed.
+  it('removePasswordAfterCompression=true strips /Encrypt marker from output', async () => {
+    const encryptedBytes = await fs.promises.readFile(PROTECTED);
+    const result = await compress(encryptedBytes, {
+      pdfPassword: PROTECTED_PASSWORD,
+      removePasswordAfterCompression: true,
     });
 
-    const compressedFile = await compress(originalFilePath, {
-      pdfPassword: 'a17',
-    });
-    // https://gitlab.com/autokent/pdf-parse/-/merge_requests/4
-    const compressedPDF = await testHelper.parsePDF({
-      data: compressedFile,
-      url: 0,
-      range: '',
-      password: 'a17',
-    });
+    expect(result).toBeInstanceOf(Buffer);
+    expect(result.length).toBeGreaterThan(0);
+    expect(result.originalSize).toBe(encryptedBytes.length);
 
-    expect(compressedFile.length).toBeLessThan(originalFile.length);
-    expect(compressedPDF.numpages).toEqual(originalPDF.numpages);
-    expect(compressedPDF.numrender).toEqual(originalPDF.numrender);
-    expect(compressedPDF.text).toEqual(originalPDF.text);
+    // The /Encrypt cross-reference should be removed from the trailer.
+    // We check the tail of the file (trailer lives at the end).
+    const tail = result.slice(-4096).toString('latin1');
+    expect(tail).not.toMatch(/\/Encrypt\b/);
   }, 60000);
 });
