@@ -1,18 +1,11 @@
 import path from 'path';
 import fs from 'fs';
-import { compress } from 'compress-pdf';
+import { compress } from '@/index';
 
 (async () => {
-  const inputPath = path.resolve(__dirname, 'A17_FlightPlan.pdf');
-  const outputPath = path.resolve(__dirname, 'compressed.pdf');
+  const pdf = path.resolve(__dirname, 'A17_FlightPlan.pdf');
+  const buffer = await compress(pdf);
 
-  const result = await compress(inputPath);
-
-  await fs.promises.writeFile(outputPath, result);
-
-  const saved = ((1 - result.compressionRatio) * 100).toFixed(1);
-  console.log(`Original:   ${(result.originalSize / 1024).toFixed(1)} KB`);
-  console.log(`Compressed: ${(result.compressedSize / 1024).toFixed(1)} KB`);
-  console.log(`Saved:      ${saved}%`);
-  console.log(`Time:       ${result.duration}ms`);
+  const compressedPdf = path.resolve(__dirname, 'compressed_pdf.pdf');
+  await fs.promises.writeFile(compressedPdf, buffer);
 })();

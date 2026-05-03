@@ -1,28 +1,11 @@
 import path from 'path';
 import fs from 'fs';
-import { compress } from 'compress-pdf';
+import { compress } from '@/index';
 
 (async () => {
-  const inputPath = path.resolve(__dirname, 'A17_FlightPlan-protected.pdf');
+  const pdf = path.resolve(__dirname, 'A17_FlightPlan-protected.pdf');
+  const buffer = await compress(pdf, { pdfPassword: 'a17' });
 
-  // Compress keeping the same password
-  const withPassword = await compress(inputPath, {
-    pdfPassword: 'a17',
-  });
-  await fs.promises.writeFile(
-    path.resolve(__dirname, 'compressed-protected.pdf'),
-    withPassword
-  );
-  console.log('Compressed (password kept)');
-
-  // Compress and remove the password
-  const withoutPassword = await compress(inputPath, {
-    pdfPassword: 'a17',
-    removePasswordAfterCompression: true,
-  });
-  await fs.promises.writeFile(
-    path.resolve(__dirname, 'compressed-unlocked.pdf'),
-    withoutPassword
-  );
-  console.log('Compressed (password removed)');
+  const compressedPdf = path.resolve(__dirname, 'compressed_protected_pdf.pdf');
+  await fs.promises.writeFile(compressedPdf, buffer);
 })();
