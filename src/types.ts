@@ -9,64 +9,51 @@ export const VALID_RESOLUTIONS = [
 export type Resolution = (typeof VALID_RESOLUTIONS)[number];
 
 export type Options = {
-  compatibilityLevel?: number;
   /**
-   * Can be
+   * Compression quality preset.
    *
-   * `screen` selects low-resolution output similar to the Acrobat Distiller (up to version X) "Screen Optimized" setting.
+   * `screen` — 72 DPI, JPEG quality 35. Smallest file, lowest quality.
+   * `ebook` — 150 DPI, JPEG quality 65. Good balance. Default.
+   * `printer` — 300 DPI, JPEG quality 85. High quality for printing.
+   * `prepress` — 300 DPI, JPEG quality 95. Maximum quality.
+   * `default` — 150 DPI, JPEG quality 75.
    *
-   * `ebook` selects medium-resolution output similar to the Acrobat Distiller (up to version X) "eBook" setting.
-   *
-   * `printer` selects output similar to the Acrobat Distiller "Print Optimized" (up to version X) setting.
-   *
-   * `prepress` selects output similar to Acrobat Distiller "Prepress Optimized" (up to version X) setting.
-   *
-   * `default` selects output intended to be useful across a wide variety of uses, possibly at the expense of a larger output file.
-   *
-   * Default is `ebook`
+   * `imageDpi` and `jpegQuality` override the preset values individually.
    */
   resolution?: Resolution;
+
   /**
-   * Set quality of pdf images (DPI).
-   * Must be between 1 and 600.
-   * Default is `100`
+   * Target DPI for image downsampling. Range 1–600.
+   * Overrides the DPI value from the `resolution` preset.
    */
-  imageQuality?: number;
+  imageDpi?: number;
+
   /**
-   * The path for ghostscript binary directory.
-   *
-   * `You can download binaries in releases section inside any version of this repository.`
+   * JPEG encoder quality for image streams. Range 0–100.
+   * Overrides the quality value from the `resolution` preset.
    */
-  gsModule?: string;
+  jpegQuality?: number;
+
   /**
-   * The pdf password
+   * Password for encrypted PDF files.
    */
   pdfPassword?: string;
+
   /**
-   * Remove password of a protected pdf, after compression
+   * Remove password protection after compression.
+   * Requires `pdfPassword` to be set.
    */
   removePasswordAfterCompression?: boolean;
 };
 
-/**
- * Result of a PDF compression operation.
- */
 export type CompressResult = {
-  /** The compressed PDF as a Buffer */
   buffer: Buffer;
-  /** Original file size in bytes */
   originalSize: number;
-  /** Compressed file size in bytes */
   compressedSize: number;
-  /** Compression ratio (e.g., 0.65 means 35% smaller) */
   compressionRatio: number;
-  /** Time taken in milliseconds */
   duration: number;
 };
 
-/**
- * Custom error class for compress-pdf errors.
- */
 export class CompressPdfError extends Error {
   constructor(
     message: string,
