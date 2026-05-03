@@ -5,7 +5,7 @@ import compress from '@/compress';
 import type { Resolution } from './types';
 
 const helpText = `
-compress-pdf - Compress PDF files using Ghostscript
+compress-pdf - Compress PDF files (pure JS, no external dependencies)
 
 Usage:
   npx compress-pdf --file <input> --output <output> [options]
@@ -17,19 +17,25 @@ Required:
 Options:
   -r, --resolution <preset>  Compression preset: screen | ebook | printer | prepress | default
                              (default: ebook)
-  --compatibilityLevel <n>   PDF compatibility level (default: 1.4)
-  --imageQuality <n>         Image resolution/quality in DPI, 1-600 (default: 100)
-  --gsModule <path>          Custom Ghostscript binary path
+  --imageDpi <n>             Target image DPI, 1-600 (overrides preset)
+  --jpegQuality <n>          JPEG quality, 0-100 (overrides preset)
   --pdfPassword <pass>       Password for protected PDFs
   --removePasswordAfterCompression
-                             Remove password protection after compression
+                             Strip password protection from output
   -h, --help                 Show this help message
+
+Presets:
+  screen   — 72 DPI, quality 35  (smallest file, screen viewing only)
+  ebook    — 150 DPI, quality 65 (default, good balance)
+  printer  — 300 DPI, quality 85 (high quality, larger file)
+  prepress — 300 DPI, quality 95 (near lossless, largest file)
 
 Examples:
   npx compress-pdf -f input.pdf -o output.pdf
   npx compress-pdf -f input.pdf -o output.pdf -r screen
-  npx compress-pdf -f input.pdf -o output.pdf --imageQuality 72
+  npx compress-pdf -f input.pdf -o output.pdf --imageDpi 72 --jpegQuality 50
   npx compress-pdf -f protected.pdf -o output.pdf --pdfPassword mypass
+  npx compress-pdf -f protected.pdf -o output.pdf --pdfPassword mypass --removePasswordAfterCompression
 `;
 
 function getStringValue(
@@ -44,9 +50,8 @@ function getStringValue(
       file: { type: 'string', short: 'f' },
       output: { type: 'string', short: 'o' },
       resolution: { type: 'string', short: 'r' },
-      compatibilityLevel: { type: 'string' },
-      imageQuality: { type: 'string' },
-      gsModule: { type: 'string' },
+      imageDpi: { type: 'string' },
+      jpegQuality: { type: 'string' },
       pdfPassword: { type: 'string' },
       removePasswordAfterCompression: { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h', default: false },
@@ -62,9 +67,8 @@ function getStringValue(
   const file = getStringValue(values.file);
   const output = getStringValue(values.output);
   const resolution = getStringValue(values.resolution);
-  const compatibilityLevel = getStringValue(values.compatibilityLevel);
-  const imageQuality = getStringValue(values.imageQuality);
-  const gsModule = getStringValue(values.gsModule);
+  const imageDpi = getStringValue(values.imageDpi);
+  const jpegQuality = getStringValue(values.jpegQuality);
   const pdfPassword = getStringValue(values.pdfPassword);
 
   if (!file || !output) {
@@ -82,11 +86,8 @@ function getStringValue(
   try {
     const result = await compress(file, {
       resolution: resolution ? (resolution as Resolution) : undefined,
-      compatibilityLevel: compatibilityLevel
-        ? Number(compatibilityLevel)
-        : undefined,
-      imageQuality: imageQuality ? Number(imageQuality) : undefined,
-      gsModule,
+      imageDpi: imageDpi ? Number(imageDpi) : undefined,
+      jpegQuality: jpegQuality ? Number(jpegQuality) : undefined,
       pdfPassword,
       removePasswordAfterCompression:
         values.removePasswordAfterCompression as boolean,
