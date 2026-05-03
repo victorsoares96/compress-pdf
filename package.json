@@ -55,7 +55,7 @@
   "dependencies": {
     "pdf-lib": "^1.17.1",
     "@jsquash/jpeg": "^1.3.0",
-    "@jsquash/resize": "^1.0.0"
+    "@jsquash/resize": "^2.0.0"
   },
   "devDependencies": {
     "@types/node": "24.12.2",
