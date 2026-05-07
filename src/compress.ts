@@ -179,6 +179,11 @@ async function compress(
 
       const params = extractCCITTParams(dict.get(PDFName.of('DecodeParms')), height);
 
+      // BlackIs1=true CCITT streams have inverted polarity relative to DeviceGray convention.
+      // Decoding and re-encoding as FlateDecode would invert colors without a /Decode [1 0] fix.
+      // Skip optimization for these streams — they remain as CCITT, rendered correctly by the viewer.
+      if (params.blackIs1) continue;
+
       const ccittResult = optimizeCCITTStream(streamBytes, params, {
         targetDpi: preset.dpi,
         currentWidthPx: width,

@@ -151,4 +151,25 @@ describe('optimizeCCITTStream', () => {
 
     expect(result).toBeNull();
   });
+
+  it('preserves black pixel polarity: black pixels in input appear as set bits in FlateDecode output', () => {
+    // 4×1 bitmap: 0b10100000 → bit7=1(black), bit6=0(white), bit5=1(black), bit4=0(white)
+    // With BlackIs1=false: 1=black in CCITT output convention used by our decoder
+    const bitmap1x4 = new Uint8Array([0b10100000]); // 1 row, 4 columns
+    mockDecode.mockReturnValue(bitmap1x4);
+
+    const params = { K: -1, columns: 4, rows: 1, blackIs1: false, encodedByteAlign: false };
+    const result = optimizeCCITTStream(new Uint8Array(1_000_000), params, {
+      targetDpi: 150,
+      currentWidthPx: 4,
+      // No pageWidthPt — no downsampling, just deflate
+    });
+
+    expect(result).not.toBeNull();
+    const decompressed = inflateSync(result!.data);
+    // Bit 7 (pixel 0): should be 1 (black)
+    expect((decompressed[0] >> 7) & 1).toBe(1);
+    // Bit 6 (pixel 1): should be 0 (white)
+    expect((decompressed[0] >> 6) & 1).toBe(0);
+  });
 });
