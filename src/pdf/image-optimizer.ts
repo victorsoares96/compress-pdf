@@ -38,7 +38,11 @@ export async function optimizeJpegStream(
 
     let processed: ImageData = imageData;
 
-    if (options.pageWidthPt && options.pageWidthPt > 0 && options.currentWidthPx > 0) {
+    if (
+      options.pageWidthPt &&
+      options.pageWidthPt > 0 &&
+      options.currentWidthPx > 0
+    ) {
       const pageWidthInches = options.pageWidthPt / 72;
       const currentDpi = options.currentWidthPx / pageWidthInches;
 
@@ -48,7 +52,10 @@ export async function optimizeJpegStream(
         const newHeight = Math.max(1, Math.round(imageData.height * scale));
 
         if (newWidth < imageData.width) {
-          processed = await resize(imageData, { width: newWidth, height: newHeight });
+          processed = await resize(imageData, {
+            width: newWidth,
+            height: newHeight,
+          });
         }
       }
     }

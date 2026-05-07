@@ -3,11 +3,11 @@ import type { Options, Resolution } from '../types';
 type Preset = { dpi: number; jpegQuality: number };
 
 const PRESETS: Record<Resolution, Preset> = {
-  screen:   { dpi: 72,  jpegQuality: 35 },
-  ebook:    { dpi: 150, jpegQuality: 65 },
-  printer:  { dpi: 300, jpegQuality: 85 },
+  screen: { dpi: 72, jpegQuality: 35 },
+  ebook: { dpi: 150, jpegQuality: 65 },
+  printer: { dpi: 300, jpegQuality: 85 },
   prepress: { dpi: 300, jpegQuality: 95 },
-  default:  { dpi: 150, jpegQuality: 75 },
+  default: { dpi: 150, jpegQuality: 75 },
 };
 
 export const CCITT_MIN_DPI = 150;

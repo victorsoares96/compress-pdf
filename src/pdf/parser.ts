@@ -14,9 +14,9 @@ export interface SaveOptions {
 
 // Standard PDF password padding string (PDF spec section 7.6.3.3)
 const PDF_PAD = Buffer.from([
-  0x28, 0xbf, 0x4e, 0x5e, 0x4e, 0x75, 0x8a, 0x41, 0x64, 0x00, 0x4e, 0x56,
-  0xff, 0xfa, 0x01, 0x08, 0x2e, 0x2e, 0x00, 0xb6, 0xd0, 0x68, 0x3e, 0x80,
-  0x2f, 0x0c, 0xa9, 0xfe, 0x64, 0x53, 0x69, 0x7a,
+  0x28, 0xbf, 0x4e, 0x5e, 0x4e, 0x75, 0x8a, 0x41, 0x64, 0x00, 0x4e, 0x56, 0xff,
+  0xfa, 0x01, 0x08, 0x2e, 0x2e, 0x00, 0xb6, 0xd0, 0x68, 0x3e, 0x80, 0x2f, 0x0c,
+  0xa9, 0xfe, 0x64, 0x53, 0x69, 0x7a,
 ]);
 
 /**
@@ -34,7 +34,7 @@ function rc4(key: Buffer, data: Buffer): Buffer {
   let ii = 0;
   let jj = 0;
   return Buffer.from(
-    Array.from(data).map(byte => {
+    Array.from(data).map((byte) => {
       ii = (ii + 1) & 0xff;
       jj = (jj + S[ii]) & 0xff;
       [S[ii], S[jj]] = [S[jj], S[ii]];
@@ -186,7 +186,10 @@ function validateUserPassword(
  * @throws {CompressPdfError} when the PDF is encrypted and no password is
  *   given, when the password is wrong, or when the bytes are not a valid PDF.
  */
-export async function loadPdf(bytes: Buffer, password?: string): Promise<PDFDocument> {
+export async function loadPdf(
+  bytes: Buffer,
+  password?: string
+): Promise<PDFDocument> {
   const encInfo = parsePdfEncryption(bytes);
 
   if (encInfo.isEncrypted) {
@@ -238,7 +241,10 @@ export async function loadPdf(bytes: Buffer, password?: string): Promise<PDFDocu
       msg.toLowerCase().includes('no password')
     ) {
       if (!password) {
-        throw new CompressPdfError('PDF is encrypted, provide pdfPassword', err);
+        throw new CompressPdfError(
+          'PDF is encrypted, provide pdfPassword',
+          err
+        );
       }
       throw new CompressPdfError('Wrong password for encrypted PDF', err);
     }
@@ -263,7 +269,9 @@ export async function savePdf(
     // has no encryption metadata.  pdf-lib carries the /Encrypt ref in
     // context.trailerInfo when it loaded an encrypted document with
     // ignoreEncryption:true; deleting it produces a clean, unprotected PDF.
-    const ctx = (doc as unknown as { context: { trailerInfo: Record<string, unknown> } }).context;
+    const ctx = (
+      doc as unknown as { context: { trailerInfo: Record<string, unknown> } }
+    ).context;
     if (ctx?.trailerInfo?.Encrypt !== undefined) {
       delete ctx.trailerInfo.Encrypt;
     }

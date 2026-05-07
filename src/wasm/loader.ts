@@ -1,8 +1,14 @@
 import type { ImageData } from '../pdf/image-optimizer';
 
 type JpegDecoder = (buffer: ArrayBuffer) => Promise<ImageData>;
-type JpegEncoder = (data: ImageData, options?: { quality: number }) => Promise<ArrayBuffer>;
-type Resizer = (data: ImageData, options: { width: number; height: number }) => Promise<ImageData>;
+type JpegEncoder = (
+  data: ImageData,
+  options?: { quality: number }
+) => Promise<ArrayBuffer>;
+type Resizer = (
+  data: ImageData,
+  options: { width: number; height: number }
+) => Promise<ImageData>;
 
 let decodeJpeg: JpegDecoder | null = null;
 let encodeJpeg: JpegEncoder | null = null;
