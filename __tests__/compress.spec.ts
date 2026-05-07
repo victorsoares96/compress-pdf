@@ -157,6 +157,8 @@ describe('compress', () => {
 
     // All CCITTFaxDecode streams must be converted to FlateDecode in output
     const outDoc = await PDFDocument.load(result);
+    const inDoc = await PDFDocument.load(input);
+    expect(outDoc.getPageCount()).toBe(inDoc.getPageCount());
     for (const [, obj] of outDoc.context.enumerateIndirectObjects()) {
       if (!(obj instanceof PDFRawStream)) continue;
       const filter = obj.dict.get(PDFName.of('Filter'));

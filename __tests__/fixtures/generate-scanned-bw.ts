@@ -63,7 +63,10 @@ async function main(): Promise<void> {
   const contentRef = context.register(PDFRawStream.of(contentDict, new Uint8Array(ops)));
   node.set(PDFName.of('Contents'), contentRef);
 
-  const pdfBytes = await doc.save();
+  // useObjectStreams:false avoids ObjStm-based cross-references which cause
+  // pdf-lib to lose the catalog Root reference after compress() round-trips
+  // the document through loadPdf → optimizeFlateStream → savePdf.
+  const pdfBytes = await doc.save({ useObjectStreams: false });
   const outPath = join(__dirname, 'scanned-bw.pdf');
   writeFileSync(outPath, pdfBytes);
   console.log(`Written: ${outPath} (${pdfBytes.length} bytes)`);

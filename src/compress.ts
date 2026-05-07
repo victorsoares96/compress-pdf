@@ -8,7 +8,15 @@ import { optimizeFlateStream } from './pdf/stream-optimizer';
 import { optimizeCCITTStream } from './pdf/ccitt-optimizer';
 import type { CCITTParams } from './pdf/ccitt-decoder';
 
-function extractCCITTParams(decodeParms: unknown): CCITTParams {
+/**
+ * Maximum total time (ms) allocated for CCITT stream decode/compress per `compress()` call.
+ * Large PDFs can contain hundreds of high-resolution CCITT streams; without a budget,
+ * processing time is unbounded. Streams are skipped (left as-is) once exhausted.
+ * Motivated by A17_FlightPlan.pdf which has 618 CCITT streams at 2432×3229 px each.
+ */
+const CCITT_BUDGET_MS = 20_000;
+
+function extractCCITTParams(decodeParms: unknown, fallbackRows = 0): CCITTParams {
   const defaults: CCITTParams = {
     K: 0,
     columns: 1728,
@@ -17,7 +25,7 @@ function extractCCITTParams(decodeParms: unknown): CCITTParams {
     encodedByteAlign: false,
   };
 
-  if (!(decodeParms instanceof PDFDict)) return defaults;
+  if (!(decodeParms instanceof PDFDict)) return { ...defaults, rows: fallbackRows };
 
   const K = decodeParms.get(PDFName.of('K'));
   const columns = decodeParms.get(PDFName.of('Columns'));
@@ -28,7 +36,7 @@ function extractCCITTParams(decodeParms: unknown): CCITTParams {
   return {
     K: K instanceof PDFNumber ? K.asNumber() : defaults.K,
     columns: columns instanceof PDFNumber ? columns.asNumber() : defaults.columns,
-    rows: rows instanceof PDFNumber ? rows.asNumber() : defaults.rows,
+    rows: rows instanceof PDFNumber ? rows.asNumber() : fallbackRows,
     blackIs1: blackIs1 instanceof PDFBool ? blackIs1.asBoolean() : defaults.blackIs1,
     encodedByteAlign:
       encodedByteAlign instanceof PDFBool
@@ -99,8 +107,8 @@ async function compress(
   //    encrypted after ignoreEncryption:true load, so optimizers return null
   //    anyway; iterating also causes pdf-lib to log "Invalid object ref" noise
   //    and can corrupt the saved cross-reference table).
-  const CCITT_BUDGET_MS = 20_000; // max total time for CCITT decode/compress
   const ccittStart = Date.now();
+  let ccittBudgetWarned = false;
   for (const [, obj] of doc.isEncrypted ? [] : doc.context.enumerateIndirectObjects()) {
     if (!(obj instanceof PDFRawStream)) continue;
 
@@ -153,16 +161,23 @@ async function compress(
       if (width === 0 || height === 0) continue;
 
       // Fast DPI pre-check: skip decode if no downscaling benefit
-      const PAGE_WIDTH_PT = 612;
+      const PAGE_WIDTH_PT = 612; // TODO: derive from actual page dimensions; 612pt = US Letter fallback
       const pageWidthInches = PAGE_WIDTH_PT / 72;
       const currentDpi = width / pageWidthInches;
       const effectiveDpi = Math.max(preset.dpi, CCITT_MIN_DPI);
       if (currentDpi <= effectiveDpi) continue;
 
       // Skip if time budget for CCITT processing is exhausted
-      if (Date.now() - ccittStart > CCITT_BUDGET_MS) continue;
+      if (Date.now() - ccittStart > CCITT_BUDGET_MS) {
+        if (!ccittBudgetWarned) {
+          // eslint-disable-next-line no-console
+          console.warn('[compress-pdf] CCITT time budget exhausted; remaining streams skipped');
+          ccittBudgetWarned = true;
+        }
+        continue;
+      }
 
-      const params = extractCCITTParams(dict.get(PDFName.of('DecodeParms')));
+      const params = extractCCITTParams(dict.get(PDFName.of('DecodeParms')), height);
 
       const ccittResult = optimizeCCITTStream(streamBytes, params, {
         targetDpi: preset.dpi,
@@ -193,8 +208,10 @@ async function compress(
   const compressionRatio = compressedSize / originalSize;
   const duration = Date.now() - startTime;
 
+  // Note: do NOT override `result.buffer` — Buffer's native .buffer returns the underlying
+  // ArrayBuffer and overriding it to `result` (a Uint8Array subclass) breaks pdf-lib's
+  // ESM bundle which reads .buffer to construct a Uint8Array view of the compressed data.
   Object.defineProperties(result, {
-    buffer: { value: result, enumerable: false, writable: false, configurable: true },
     originalSize: { value: originalSize, enumerable: false, writable: false, configurable: true },
     compressedSize: { value: compressedSize, enumerable: false, writable: false, configurable: true },
     compressionRatio: { value: compressionRatio, enumerable: false, writable: false, configurable: true },

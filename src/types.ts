@@ -47,7 +47,6 @@ export type Options = {
 };
 
 export type CompressResult = {
-  buffer: Buffer;
   originalSize: number;
   compressedSize: number;
   compressionRatio: number;
