@@ -5,7 +5,6 @@ import { CCITT_MIN_DPI } from './presets';
 export interface OptimizeCCITTOptions {
   targetDpi: number;
   currentWidthPx: number;
-  currentHeightPx: number;
   pageWidthPt?: number;
 }
 
@@ -81,7 +80,7 @@ export function optimizeCCITTStream(
   let height = params.rows;
 
   if (
-    options.pageWidthPt &&
+    options.pageWidthPt !== undefined &&
     options.pageWidthPt > 0 &&
     options.currentWidthPx > 0
   ) {

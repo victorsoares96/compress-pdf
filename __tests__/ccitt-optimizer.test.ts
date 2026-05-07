@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { inflateSync } from 'zlib';
 
 vi.mock('../src/pdf/ccitt-decoder', () => ({
   decodeCCITT: vi.fn(),
@@ -33,7 +34,6 @@ describe('optimizeCCITTStream', () => {
     const result = optimizeCCITTStream(new Uint8Array(10), BASE_PARAMS, {
       targetDpi: 150,
       currentWidthPx: 100,
-      currentHeightPx: 100,
       pageWidthPt: 612,
     });
 
@@ -56,7 +56,6 @@ describe('optimizeCCITTStream', () => {
     const result = optimizeCCITTStream(new Uint8Array(1_000_000), params, {
       targetDpi: 150,
       currentWidthPx: 2550,
-      currentHeightPx: 3300,
       pageWidthPt: 612,
     });
 
@@ -79,7 +78,6 @@ describe('optimizeCCITTStream', () => {
     const result = optimizeCCITTStream(new Uint8Array(1_000_000), params, {
       targetDpi: 72, // screen preset — floor must apply
       currentWidthPx: 2550,
-      currentHeightPx: 3300,
       pageWidthPt: 612,
     });
 
@@ -104,13 +102,40 @@ describe('optimizeCCITTStream', () => {
     const result = optimizeCCITTStream(new Uint8Array(1_000_000), params, {
       targetDpi: 150,
       currentWidthPx: 1275,
-      currentHeightPx: 1650,
       pageWidthPt: 612,
     });
 
     expect(result).not.toBeNull();
     expect(result!.width).toBe(1275); // unchanged
     expect(result!.height).toBe(1650); // unchanged
+  });
+
+  it('downsample1Bit: majority vote produces correct pixel values', () => {
+    // 4 columns × 2 rows: 1 byte per row = 2 bytes total
+    // 0xC0 = 1100 0000: pixels 0,1 are black; pixels 2,3 are white
+    const bitmap4x2 = new Uint8Array([0xC0, 0xC0]);
+    mockDecode.mockReturnValue(bitmap4x2);
+
+    // currentDpi = 2550 / (612/72) = 300 → scale=0.5 → 4×2 becomes 2×1
+    const params = { K: -1, columns: 4, rows: 2, blackIs1: false, encodedByteAlign: false };
+    const result = optimizeCCITTStream(new Uint8Array(1_000_000), params, {
+      targetDpi: 150,
+      currentWidthPx: 2550,
+      pageWidthPt: 612,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.width).toBe(2);
+    expect(result!.height).toBe(1);
+
+    // Decompress FlateDecode output to inspect pixels
+    const decompressed = inflateSync(result!.data);
+    // 2 columns × 1 row = 1 byte (ceil(2/8))
+    expect(decompressed.length).toBe(1);
+    // Pixel 0 (bit 7): black — majority of src pixels 0,1 from rows 0,1 = all black
+    expect((decompressed[0] >> 7) & 1).toBe(1);
+    // Pixel 1 (bit 6): white — majority of src pixels 2,3 from rows 0,1 = all white
+    expect((decompressed[0] >> 6) & 1).toBe(0);
   });
 
   it('returns null when FlateDecode result is not smaller than original stream', () => {
@@ -121,7 +146,6 @@ describe('optimizeCCITTStream', () => {
     const result = optimizeCCITTStream(new Uint8Array(1), BASE_PARAMS, {
       targetDpi: 150,
       currentWidthPx: 100,
-      currentHeightPx: 100,
       pageWidthPt: 612,
     });
 
