@@ -1,10 +1,41 @@
 import fs from 'fs';
-import { PDFDocument, PDFRawStream, PDFName, PDFNumber } from 'pdf-lib';
+import { PDFDocument, PDFRawStream, PDFName, PDFNumber, PDFDict, PDFBool } from 'pdf-lib';
 import { VALID_RESOLUTIONS, CompressPdfError, type Options, type CompressResult } from './types';
-import { applyOptions } from './pdf/presets';
+import { applyOptions, CCITT_MIN_DPI } from './pdf/presets';
 import { loadPdf, savePdf } from './pdf/parser';
 import { optimizeJpegStream } from './pdf/image-optimizer';
 import { optimizeFlateStream } from './pdf/stream-optimizer';
+import { optimizeCCITTStream } from './pdf/ccitt-optimizer';
+import type { CCITTParams } from './pdf/ccitt-decoder';
+
+function extractCCITTParams(decodeParms: unknown): CCITTParams {
+  const defaults: CCITTParams = {
+    K: 0,
+    columns: 1728,
+    rows: 0,
+    blackIs1: false,
+    encodedByteAlign: false,
+  };
+
+  if (!(decodeParms instanceof PDFDict)) return defaults;
+
+  const K = decodeParms.get(PDFName.of('K'));
+  const columns = decodeParms.get(PDFName.of('Columns'));
+  const rows = decodeParms.get(PDFName.of('Rows'));
+  const blackIs1 = decodeParms.get(PDFName.of('BlackIs1'));
+  const encodedByteAlign = decodeParms.get(PDFName.of('EncodedByteAlign'));
+
+  return {
+    K: K instanceof PDFNumber ? K.asNumber() : defaults.K,
+    columns: columns instanceof PDFNumber ? columns.asNumber() : defaults.columns,
+    rows: rows instanceof PDFNumber ? rows.asNumber() : defaults.rows,
+    blackIs1: blackIs1 instanceof PDFBool ? blackIs1.asBoolean() : defaults.blackIs1,
+    encodedByteAlign:
+      encodedByteAlign instanceof PDFBool
+        ? encodedByteAlign.asBoolean()
+        : defaults.encodedByteAlign,
+  };
+}
 
 /**
  * Validate compression options.
@@ -68,6 +99,8 @@ async function compress(
   //    encrypted after ignoreEncryption:true load, so optimizers return null
   //    anyway; iterating also causes pdf-lib to log "Invalid object ref" noise
   //    and can corrupt the saved cross-reference table).
+  const CCITT_BUDGET_MS = 20_000; // max total time for CCITT decode/compress
+  const ccittStart = Date.now();
   for (const [, obj] of doc.isEncrypted ? [] : doc.context.enumerateIndirectObjects()) {
     if (!(obj instanceof PDFRawStream)) continue;
 
@@ -108,6 +141,42 @@ async function compress(
       if (optimized !== null) {
         (obj as unknown as { contents: Uint8Array }).contents = optimized;
         dict.set(PDFName.of('Length'), PDFNumber.of(optimized.length));
+      }
+    } else if (filterName === '/CCITTFaxDecode') {
+      const isImage = subtype instanceof PDFName && subtype.asString() === '/Image';
+      if (!isImage) continue;
+
+      const widthObj = dict.get(PDFName.of('Width'));
+      const heightObj = dict.get(PDFName.of('Height'));
+      const width = widthObj instanceof PDFNumber ? widthObj.asNumber() : 0;
+      const height = heightObj instanceof PDFNumber ? heightObj.asNumber() : 0;
+      if (width === 0 || height === 0) continue;
+
+      // Fast DPI pre-check: skip decode if no downscaling benefit
+      const PAGE_WIDTH_PT = 612;
+      const pageWidthInches = PAGE_WIDTH_PT / 72;
+      const currentDpi = width / pageWidthInches;
+      const effectiveDpi = Math.max(preset.dpi, CCITT_MIN_DPI);
+      if (currentDpi <= effectiveDpi) continue;
+
+      // Skip if time budget for CCITT processing is exhausted
+      if (Date.now() - ccittStart > CCITT_BUDGET_MS) continue;
+
+      const params = extractCCITTParams(dict.get(PDFName.of('DecodeParms')));
+
+      const ccittResult = optimizeCCITTStream(streamBytes, params, {
+        targetDpi: preset.dpi,
+        currentWidthPx: width,
+        pageWidthPt: PAGE_WIDTH_PT,
+      });
+
+      if (ccittResult !== null) {
+        (obj as unknown as { contents: Uint8Array }).contents = ccittResult.data;
+        dict.set(PDFName.of('Filter'), PDFName.of('FlateDecode'));
+        dict.delete(PDFName.of('DecodeParms'));
+        dict.set(PDFName.of('Width'), PDFNumber.of(ccittResult.width));
+        dict.set(PDFName.of('Height'), PDFNumber.of(ccittResult.height));
+        dict.set(PDFName.of('Length'), PDFNumber.of(ccittResult.data.length));
       }
     }
   }

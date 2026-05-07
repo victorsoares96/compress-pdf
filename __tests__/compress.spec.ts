@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { PDFDocument, PDFName, PDFNumber } from 'pdf-lib';
+import { PDFDocument, PDFRawStream, PDFName, PDFNumber } from 'pdf-lib';
 import compress from '../src/compress';
 import { CompressPdfError } from '../src/types';
 
@@ -145,4 +145,25 @@ describe('compress', () => {
     const tail = result.slice(-4096).toString('latin1');
     expect(tail).not.toMatch(/\/Encrypt\b/);
   }, 60000);
+
+  // Test 10: CCITTFaxDecode streams converted to FlateDecode
+  it('converts CCITTFaxDecode image streams to FlateDecode and reduces file size', async () => {
+    const SCANNED_BW = path.resolve(__dirname, 'fixtures/scanned-bw.pdf');
+    const input = await fs.promises.readFile(SCANNED_BW);
+
+    const result = await compress(input, { resolution: 'ebook' });
+
+    expect(result).toBeInstanceOf(Buffer);
+
+    // All CCITTFaxDecode streams must be converted to FlateDecode in output
+    const outDoc = await PDFDocument.load(result);
+    for (const [, obj] of outDoc.context.enumerateIndirectObjects()) {
+      if (!(obj instanceof PDFRawStream)) continue;
+      const filter = obj.dict.get(PDFName.of('Filter'));
+      if (filter) expect(filter.toString()).not.toBe('/CCITTFaxDecode');
+    }
+
+    // Overall file must be smaller than input
+    expect(result.compressionRatio).toBeLessThan(1.0);
+  }, 30000);
 });
