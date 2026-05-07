@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- CCITT pipeline: `CCITTFaxDecode` image streams (B&W scanned documents) are now decoded,
+  optionally downsampled to the target DPI (minimum 150 DPI floor to preserve text legibility),
+  and re-encoded as `FlateDecode` (lossless). Powered by a port of the `CCITTFaxDecoder` from
+  pdf.js (Apache 2.0).
+
+### Breaking Changes
+- `CompressResult.buffer` property removed. The property previously overrode Buffer's native
+  `.buffer` getter (which returns the underlying `ArrayBuffer`) with the Buffer itself — a type
+  mismatch that broke pdf-lib's ESM bundle when used as a downstream dependency. Callers should
+  use the returned `Buffer` directly instead of accessing `.buffer`.
+
+---
+
 ## [0.6.0] - Automatic Binary Download
 
 ### ✨ New Features

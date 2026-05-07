@@ -113,11 +113,17 @@ describe('optimizeCCITTStream', () => {
   it('downsample1Bit: majority vote produces correct pixel values', () => {
     // 4 columns × 2 rows: 1 byte per row = 2 bytes total
     // 0xC0 = 1100 0000: pixels 0,1 are black; pixels 2,3 are white
-    const bitmap4x2 = new Uint8Array([0xC0, 0xC0]);
+    const bitmap4x2 = new Uint8Array([0xc0, 0xc0]);
     mockDecode.mockReturnValue(bitmap4x2);
 
     // currentDpi = 2550 / (612/72) = 300 → scale=0.5 → 4×2 becomes 2×1
-    const params = { K: -1, columns: 4, rows: 2, blackIs1: false, encodedByteAlign: false };
+    const params = {
+      K: -1,
+      columns: 4,
+      rows: 2,
+      blackIs1: false,
+      encodedByteAlign: false,
+    };
     const result = optimizeCCITTStream(new Uint8Array(1_000_000), params, {
       targetDpi: 150,
       currentWidthPx: 2550,
@@ -158,7 +164,13 @@ describe('optimizeCCITTStream', () => {
     const bitmap1x4 = new Uint8Array([0b10100000]); // 1 row, 4 columns
     mockDecode.mockReturnValue(bitmap1x4);
 
-    const params = { K: -1, columns: 4, rows: 1, blackIs1: false, encodedByteAlign: false };
+    const params = {
+      K: -1,
+      columns: 4,
+      rows: 1,
+      blackIs1: false,
+      encodedByteAlign: false,
+    };
     const result = optimizeCCITTStream(new Uint8Array(1_000_000), params, {
       targetDpi: 150,
       currentWidthPx: 4,

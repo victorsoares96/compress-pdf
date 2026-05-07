@@ -77,7 +77,9 @@ export function optimizeCCITTStream(
   }
 
   let width = params.columns;
-  let height = params.rows;
+  const rowBytes = Math.ceil(params.columns / 8);
+  let height =
+    rowBytes > 0 ? Math.floor(bitmap.length / rowBytes) : params.rows;
 
   if (
     options.pageWidthPt !== undefined &&

@@ -1,6 +1,18 @@
 import fs from 'fs';
-import { PDFDocument, PDFRawStream, PDFName, PDFNumber, PDFDict, PDFBool } from 'pdf-lib';
-import { VALID_RESOLUTIONS, CompressPdfError, type Options, type CompressResult } from './types';
+import {
+  PDFDocument,
+  PDFRawStream,
+  PDFName,
+  PDFNumber,
+  PDFDict,
+  PDFBool,
+} from 'pdf-lib';
+import {
+  VALID_RESOLUTIONS,
+  CompressPdfError,
+  type Options,
+  type CompressResult,
+} from './types';
 import { applyOptions, CCITT_MIN_DPI } from './pdf/presets';
 import { loadPdf, savePdf } from './pdf/parser';
 import { optimizeJpegStream } from './pdf/image-optimizer';
@@ -16,7 +28,10 @@ import type { CCITTParams } from './pdf/ccitt-decoder';
  */
 const CCITT_BUDGET_MS = 20_000;
 
-function extractCCITTParams(decodeParms: unknown, fallbackRows = 0): CCITTParams {
+function extractCCITTParams(
+  decodeParms: unknown,
+  fallbackRows = 0
+): CCITTParams {
   const defaults: CCITTParams = {
     K: 0,
     columns: 1728,
@@ -25,7 +40,8 @@ function extractCCITTParams(decodeParms: unknown, fallbackRows = 0): CCITTParams
     encodedByteAlign: false,
   };
 
-  if (!(decodeParms instanceof PDFDict)) return { ...defaults, rows: fallbackRows };
+  if (!(decodeParms instanceof PDFDict))
+    return { ...defaults, rows: fallbackRows };
 
   const K = decodeParms.get(PDFName.of('K'));
   const columns = decodeParms.get(PDFName.of('Columns'));
@@ -35,9 +51,11 @@ function extractCCITTParams(decodeParms: unknown, fallbackRows = 0): CCITTParams
 
   return {
     K: K instanceof PDFNumber ? K.asNumber() : defaults.K,
-    columns: columns instanceof PDFNumber ? columns.asNumber() : defaults.columns,
+    columns:
+      columns instanceof PDFNumber ? columns.asNumber() : defaults.columns,
     rows: rows instanceof PDFNumber ? rows.asNumber() : fallbackRows,
-    blackIs1: blackIs1 instanceof PDFBool ? blackIs1.asBoolean() : defaults.blackIs1,
+    blackIs1:
+      blackIs1 instanceof PDFBool ? blackIs1.asBoolean() : defaults.blackIs1,
     encodedByteAlign:
       encodedByteAlign instanceof PDFBool
         ? encodedByteAlign.asBoolean()
@@ -50,7 +68,10 @@ function extractCCITTParams(decodeParms: unknown, fallbackRows = 0): CCITTParams
  * @throws {CompressPdfError} if any option value is out of range.
  */
 function validateOptions(options?: Options): void {
-  if (options?.resolution !== undefined && !VALID_RESOLUTIONS.includes(options.resolution)) {
+  if (
+    options?.resolution !== undefined &&
+    !VALID_RESOLUTIONS.includes(options.resolution)
+  ) {
     throw new CompressPdfError(
       `Invalid resolution "${options.resolution}". Must be one of: ${VALID_RESOLUTIONS.join(', ')}`
     );
@@ -109,10 +130,12 @@ async function compress(
   //    and can corrupt the saved cross-reference table).
   const ccittStart = Date.now();
   let ccittBudgetWarned = false;
-  for (const [, obj] of doc.isEncrypted ? [] : doc.context.enumerateIndirectObjects()) {
+  for (const [, obj] of doc.isEncrypted
+    ? []
+    : doc.context.enumerateIndirectObjects()) {
     if (!(obj instanceof PDFRawStream)) continue;
 
-    const dict = obj.dict;
+    const { dict } = obj;
     const filter = dict.get(PDFName.of('Filter'));
     const subtype = dict.get(PDFName.of('Subtype'));
 
@@ -123,7 +146,8 @@ async function compress(
 
     if (filterName === 'DCTDecode') {
       // Only optimize image XObjects
-      const isImage = subtype instanceof PDFName && subtype.asString() === 'Image';
+      const isImage =
+        subtype instanceof PDFName && subtype.asString() === 'Image';
       if (!isImage) continue;
 
       const widthObj = dict.get(PDFName.of('Width'));
@@ -151,7 +175,8 @@ async function compress(
         dict.set(PDFName.of('Length'), PDFNumber.of(optimized.length));
       }
     } else if (filterName === '/CCITTFaxDecode') {
-      const isImage = subtype instanceof PDFName && subtype.asString() === '/Image';
+      const isImage =
+        subtype instanceof PDFName && subtype.asString() === '/Image';
       if (!isImage) continue;
 
       const widthObj = dict.get(PDFName.of('Width'));
@@ -171,13 +196,18 @@ async function compress(
       if (Date.now() - ccittStart > CCITT_BUDGET_MS) {
         if (!ccittBudgetWarned) {
           // eslint-disable-next-line no-console
-          console.warn('[compress-pdf] CCITT time budget exhausted; remaining streams skipped');
+          console.warn(
+            '[compress-pdf] CCITT time budget exhausted; remaining streams skipped'
+          );
           ccittBudgetWarned = true;
         }
         continue;
       }
 
-      const params = extractCCITTParams(dict.get(PDFName.of('DecodeParms')), height);
+      const params = extractCCITTParams(
+        dict.get(PDFName.of('DecodeParms')),
+        height
+      );
 
       // BlackIs1=true CCITT streams have inverted polarity relative to DeviceGray convention.
       // Decoding and re-encoding as FlateDecode would invert colors without a /Decode [1 0] fix.
@@ -191,7 +221,8 @@ async function compress(
       });
 
       if (ccittResult !== null) {
-        (obj as unknown as { contents: Uint8Array }).contents = ccittResult.data;
+        (obj as unknown as { contents: Uint8Array }).contents =
+          ccittResult.data;
         dict.set(PDFName.of('Filter'), PDFName.of('FlateDecode'));
         dict.delete(PDFName.of('DecodeParms'));
         dict.set(PDFName.of('Width'), PDFNumber.of(ccittResult.width));
@@ -217,10 +248,30 @@ async function compress(
   // ArrayBuffer and overriding it to `result` (a Uint8Array subclass) breaks pdf-lib's
   // ESM bundle which reads .buffer to construct a Uint8Array view of the compressed data.
   Object.defineProperties(result, {
-    originalSize: { value: originalSize, enumerable: false, writable: false, configurable: true },
-    compressedSize: { value: compressedSize, enumerable: false, writable: false, configurable: true },
-    compressionRatio: { value: compressionRatio, enumerable: false, writable: false, configurable: true },
-    duration: { value: duration, enumerable: false, writable: false, configurable: true },
+    originalSize: {
+      value: originalSize,
+      enumerable: false,
+      writable: false,
+      configurable: true,
+    },
+    compressedSize: {
+      value: compressedSize,
+      enumerable: false,
+      writable: false,
+      configurable: true,
+    },
+    compressionRatio: {
+      value: compressionRatio,
+      enumerable: false,
+      writable: false,
+      configurable: true,
+    },
+    duration: {
+      value: duration,
+      enumerable: false,
+      writable: false,
+      configurable: true,
+    },
   });
 
   return result;
