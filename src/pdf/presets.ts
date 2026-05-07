@@ -10,6 +10,8 @@ const PRESETS: Record<Resolution, Preset> = {
   default:  { dpi: 150, jpegQuality: 75 },
 };
 
+export const CCITT_MIN_DPI = 150;
+
 export function getPreset(resolution: Resolution | undefined): Preset {
   return PRESETS[resolution ?? 'ebook'];
 }
