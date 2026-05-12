@@ -56,7 +56,7 @@
   },
   "homepage": "https://github.com/victorsoares96/compress-pdf#readme",
   "devDependencies": {
-    "@types/node": "24.12.2",
+    "@types/node": "24.12.4",
     "@types/pdf-parse": "1.1.5",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
