@@ -135,7 +135,7 @@ function checkLinuxDependencies(binDir) {
       console.warn(`⚠️  Missing shared library: ${libName}`);
       console.warn(`   Please install it and re-run npm install.`);
       console.warn(
-        `   Example: sudo apt-get install -y ${libName.split('.so')[0].replace(/^lib/, 'lib')}`
+        `   Example: sudo apt-get install -y ${libName.split('.so')[0]}`
       );
       console.warn(
         `   Or set COMPRESS_PDF_SKIP_DOWNLOAD=true to use a system Ghostscript instead.`
