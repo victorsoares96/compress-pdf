@@ -94,7 +94,10 @@ with tarfile.open(r'${archivePath.replace(/\\/g, '\\\\')}', 'r:xz') as t:
 `.trim();
     const pythonBin = process.platform === 'win32' ? 'python' : 'python3';
     execSync(
-      `${pythonBin} -c "${py.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`,
+      `${pythonBin} -c "${py
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"')
+        .replace(/\r?\n/g, ' ')}"`,
       { stdio: 'pipe' }
     );
     console.log('✅ Extraction completed (Python fallback)');
