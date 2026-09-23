@@ -27,9 +27,8 @@ export type Options = {
    */
   resolution?: Resolution;
   /**
-   * Set quality of pdf images (DPI).
-   * Must be between 1 and 600.
-   * Default is `100`
+   * Image resolution in DPI. Must be between 1 and 600.
+   * When omitted, Ghostscript keeps the resolution from the selected preset.
    */
   imageQuality?: number;
   /**

@@ -25,10 +25,13 @@ function definedOptions(options?: Options): Partial<Options> {
   ) as Partial<Options>;
 }
 
-const defaultOptions: Required<Options> = {
+type ResolvedOptions = Required<Omit<Options, 'imageQuality'>> & {
+  imageQuality?: number;
+};
+
+const defaultOptions: ResolvedOptions = {
   compatibilityLevel: 1.4,
   resolution: 'ebook',
-  imageQuality: 100,
   gsModule: getBinPath(os.platform()),
   pdfPassword: '',
   removePasswordAfterCompression: false,
@@ -37,7 +40,7 @@ const defaultOptions: Required<Options> = {
 /**
  * Validate compression options before executing.
  */
-function validateOptions(opts: Required<Options>): void {
+function validateOptions(opts: ResolvedOptions): void {
   if (
     !VALID_RESOLUTIONS.includes(
       opts.resolution as (typeof VALID_RESOLUTIONS)[number]
@@ -48,7 +51,10 @@ function validateOptions(opts: Required<Options>): void {
     );
   }
 
-  if (opts.imageQuality < 1 || opts.imageQuality > 600) {
+  if (
+    opts.imageQuality !== undefined &&
+    (opts.imageQuality < 1 || opts.imageQuality > 600)
+  ) {
     throw new CompressPdfError(
       `imageQuality must be between 1 and 600, got ${opts.imageQuality}`
     );
@@ -66,12 +72,12 @@ function validateOptions(opts: Required<Options>): void {
  * Using an array (for execFile) instead of a string (for exec)
  * prevents command injection vulnerabilities.
  */
-function buildGsArgs(options: {
+export function buildGsArgs(options: {
   output: string;
   inputFile: string;
   compatibilityLevel: number;
   resolution: string;
-  imageQuality: number;
+  imageQuality?: number;
   pdfPassword: string;
   removePasswordAfterCompression: boolean;
 }): string[] {
@@ -87,14 +93,20 @@ function buildGsArgs(options: {
     '-dEmbedAllFonts=true',
     '-dSubsetFonts=true',
     '-dAutoRotatePages=/None',
-    '-dColorImageDownsampleType=/Bicubic',
-    `-dColorImageResolution=${options.imageQuality}`,
-    '-dGrayImageDownsampleType=/Bicubic',
-    `-dGrayImageResolution=${options.imageQuality}`,
-    '-dMonoImageDownsampleType=/Bicubic',
-    `-dMonoImageResolution=${options.imageQuality}`,
-    `-sOutputFile=${options.output}`,
   ];
+
+  if (options.imageQuality !== undefined) {
+    args.push(
+      '-dColorImageDownsampleType=/Bicubic',
+      `-dColorImageResolution=${options.imageQuality}`,
+      '-dGrayImageDownsampleType=/Bicubic',
+      `-dGrayImageResolution=${options.imageQuality}`,
+      '-dMonoImageDownsampleType=/Subsample',
+      `-dMonoImageResolution=${options.imageQuality}`
+    );
+  }
+
+  args.push(`-sOutputFile=${options.output}`);
 
   if (options.pdfPassword) {
     args.push(`-sPDFPassword=${options.pdfPassword}`);
@@ -134,7 +146,7 @@ async function safeUnlink(filePath: string): Promise<void> {
 async function compress(file: string | Buffer, options?: Options) {
   const startTime = Date.now();
 
-  const mergedOptions: Required<Options> = {
+  const mergedOptions: ResolvedOptions = {
     ...defaultOptions,
     ...definedOptions(options),
   };

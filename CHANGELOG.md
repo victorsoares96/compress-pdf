@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### 🐛 Bug Fixes
+
+- `imageQuality` no longer defaults to 100 DPI. That value was always sent to Ghostscript and overrode the `printer` and `prepress` presets (300 DPI). Resolution and downsample flags are now emitted only when `imageQuality` is set. Monochrome images use `/Subsample`; color and gray stay `/Bicubic`.
+
+### ⚠️ Behavior
+
+- The default compression is the `ebook` preset on its own (150 DPI), not `ebook` resampled to 100 DPI.
+
 ## [0.6.0] - Automatic Binary Download
 
 ### ✨ New Features
