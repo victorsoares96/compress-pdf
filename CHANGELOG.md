@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### 🐛 Bug Fixes
+
+- Ghostscript failures no longer include the PDF password. The message is built from stderr, and the password is redacted from the error message and cause.
+- The CLI reads `COMPRESS_PDF_PASSWORD` when `--pdfPassword` is omitted. `--pdfPassword` is still accepted and is stored in shell history.
+
 ## [0.6.0] - Automatic Binary Download
 
 ### ✨ New Features

@@ -112,6 +112,28 @@ function buildGsArgs(options: {
   return args;
 }
 
+function redactSecret(text: string, secret: string): string {
+  if (!secret) return text;
+  return text.split(secret).join('***');
+}
+
+function outputText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Buffer.isBuffer(value)) return value.toString('utf8');
+  return '';
+}
+
+function redactCause(error: unknown, secret: string): unknown {
+  if (!secret || !(error instanceof Error)) return error;
+
+  const redacted = new Error(redactSecret(error.message, secret));
+  redacted.name = error.name;
+  if (error.stack) {
+    redacted.stack = redactSecret(error.stack, secret);
+  }
+  return redacted;
+}
+
 /**
  * Safely remove a file, ignoring errors if it doesn't exist.
  */
@@ -182,10 +204,18 @@ async function compress(file: string | Buffer, options?: Options) {
     try {
       await execFile(gsModule, args);
     } catch (error) {
-      throw new CompressPdfError(
-        `Ghostscript failed to compress the PDF. ${error instanceof Error ? error.message : String(error)}`,
-        error
+      const stderr = redactSecret(
+        outputText(
+          error && typeof error === 'object' && 'stderr' in error
+            ? error.stderr
+            : undefined
+        ).trim(),
+        pdfPassword
       );
+      const message = stderr
+        ? `Ghostscript failed to compress the PDF. ${stderr}`
+        : 'Ghostscript failed to compress the PDF.';
+      throw new CompressPdfError(message, redactCause(error, pdfPassword));
     }
 
     const compressedBuffer = await fs.promises.readFile(output);
