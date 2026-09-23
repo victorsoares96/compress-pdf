@@ -18,7 +18,8 @@ Options:
   -r, --resolution <preset>  Compression preset: screen | ebook | printer | prepress | default
                              (default: ebook)
   --compatibilityLevel <n>   PDF compatibility level (default: 1.4)
-  --imageQuality <n>         Image resolution/quality in DPI, 1-600 (default: 100)
+  --imageQuality <n>         Image resolution in DPI, 1-600.
+                             Omitted by default; the preset resolution is used
   --gsModule <path>          Custom Ghostscript binary path
   --pdfPassword <pass>       Password for protected PDFs
   --removePasswordAfterCompression
