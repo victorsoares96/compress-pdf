@@ -52,8 +52,6 @@ export type Options = {
  * Result of a PDF compression operation.
  */
 export type CompressResult = {
-  /** The compressed PDF as a Buffer */
-  buffer: Buffer;
   /** Original file size in bytes */
   originalSize: number;
   /** Compressed file size in bytes */

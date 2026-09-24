@@ -203,8 +203,8 @@ async function compress(file: string | Buffer, options?: Options) {
     // Attach metadata as non-enumerable properties for backward compatibility.
     // The return value is still a Buffer (works with writeFile, etc.),
     // but you can access .originalSize, .compressedSize, .compressionRatio, .duration.
+    // Leave Buffer#buffer as the native ArrayBuffer.
     Object.defineProperties(compressedBuffer, {
-      buffer: { value: compressedBuffer, enumerable: false },
       originalSize: { value: originalSize, enumerable: false },
       compressedSize: { value: compressedSize, enumerable: false },
       compressionRatio: { value: compressionRatio, enumerable: false },

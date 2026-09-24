@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### 🐛 Bug Fixes
+
+- Compression results no longer replace `Buffer#buffer` with the Buffer itself. The property stays the native `ArrayBuffer`. `originalSize`, `compressedSize`, `compressionRatio`, and `duration` are unchanged.
+
 ## [0.6.0] - Automatic Binary Download
 
 ### ✨ New Features
