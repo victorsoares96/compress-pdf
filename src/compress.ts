@@ -25,11 +25,10 @@ function definedOptions(options?: Options): Partial<Options> {
   ) as Partial<Options>;
 }
 
-const defaultOptions: Required<Options> = {
+const defaultOptions: Required<Omit<Options, 'gsModule'>> = {
   compatibilityLevel: 1.4,
   resolution: 'ebook',
   imageQuality: 100,
-  gsModule: getBinPath(os.platform()),
   pdfPassword: '',
   removePasswordAfterCompression: false,
 };
@@ -134,9 +133,11 @@ async function safeUnlink(filePath: string): Promise<void> {
 async function compress(file: string | Buffer, options?: Options) {
   const startTime = Date.now();
 
+  const userOptions = definedOptions(options);
   const mergedOptions: Required<Options> = {
     ...defaultOptions,
-    ...definedOptions(options),
+    ...userOptions,
+    gsModule: userOptions.gsModule ?? getBinPath(os.platform()),
   };
 
   validateOptions(mergedOptions);
