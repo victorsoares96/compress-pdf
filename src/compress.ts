@@ -13,6 +13,7 @@ import {
 } from './types';
 
 const execFile = util.promisify(childProcess.execFile);
+const GS_MAX_BUFFER = 16 * 1024 * 1024;
 
 /**
  * Strip undefined entries so `{ ...defaults, ...options }` does not overwrite
@@ -25,18 +26,24 @@ function definedOptions(options?: Options): Partial<Options> {
   ) as Partial<Options>;
 }
 
-const defaultOptions: Required<Omit<Options, 'gsModule'>> = {
+const defaultOptions: Required<Omit<Options, 'gsModule' | 'signal'>> = {
   compatibilityLevel: 1.4,
   resolution: 'ebook',
   imageQuality: 100,
   pdfPassword: '',
   removePasswordAfterCompression: false,
+  timeout: 120_000,
+};
+
+type ResolvedOptions = Required<Omit<Options, 'gsModule' | 'signal'>> & {
+  gsModule: string;
+  signal?: AbortSignal;
 };
 
 /**
  * Validate compression options before executing.
  */
-function validateOptions(opts: Required<Options>): void {
+function validateOptions(opts: ResolvedOptions): void {
   if (
     !VALID_RESOLUTIONS.includes(
       opts.resolution as (typeof VALID_RESOLUTIONS)[number]
@@ -130,6 +137,33 @@ function outputText(value: unknown): string {
   return '';
 }
 
+function errorCode(error: unknown): string | undefined {
+  if (
+    error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    typeof error.code === 'string'
+  ) {
+    return error.code;
+  }
+  return undefined;
+}
+
+function isAbort(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const aborted = error as { name?: string; code?: unknown };
+  return aborted.name === 'AbortError' || aborted.code === 'ABORT_ERR';
+}
+
+function isExecTimeout(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const timedOut = error as {
+    killed?: boolean;
+    signal?: NodeJS.Signals | null;
+  };
+  return timedOut.killed === true && timedOut.signal === 'SIGTERM';
+}
+
 function redactCause(error: unknown, secret: string): unknown {
   if (!secret || !(error instanceof Error)) return error;
 
@@ -164,7 +198,7 @@ async function compress(file: string | Buffer, options?: Options) {
   const startTime = Date.now();
 
   const userOptions = definedOptions(options);
-  const mergedOptions: Required<Options> = {
+  const mergedOptions: ResolvedOptions = {
     ...defaultOptions,
     ...userOptions,
     gsModule: userOptions.gsModule ?? getBinPath(os.platform()),
@@ -179,6 +213,8 @@ async function compress(file: string | Buffer, options?: Options) {
     gsModule,
     pdfPassword,
     removePasswordAfterCompression,
+    timeout,
+    signal,
   } = mergedOptions;
 
   // Validate that source file exists (when path is provided)
@@ -193,7 +229,7 @@ async function compress(file: string | Buffer, options?: Options) {
     let inputFile: string;
 
     if (typeof file === 'string') {
-      inputFile = file;
+      inputFile = path.resolve(file);
     } else {
       tempFile = path.resolve(os.tmpdir(), `compress-pdf-${randomUUID()}`);
       await fs.promises.writeFile(tempFile, file);
@@ -211,8 +247,33 @@ async function compress(file: string | Buffer, options?: Options) {
     });
 
     try {
-      await execFile(gsModule, args);
+      await execFile(gsModule, args, {
+        timeout,
+        maxBuffer: GS_MAX_BUFFER,
+        signal,
+      });
     } catch (error) {
+      if (errorCode(error) === 'ENOENT') {
+        throw new CompressPdfError(
+          `Ghostscript was not found at "${gsModule}". Set COMPRESS_PDF_BIN_PATH to the Ghostscript binary, or install Ghostscript manually.`,
+          redactCause(error, pdfPassword)
+        );
+      }
+
+      if (isAbort(error)) {
+        throw new CompressPdfError(
+          'Ghostscript compression was aborted.',
+          redactCause(error, pdfPassword)
+        );
+      }
+
+      if (isExecTimeout(error)) {
+        throw new CompressPdfError(
+          `Ghostscript timed out after ${timeout}ms.`,
+          redactCause(error, pdfPassword)
+        );
+      }
+
       const stderr = redactSecret(
         outputText(
           error && typeof error === 'object' && 'stderr' in error

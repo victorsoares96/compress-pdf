@@ -46,6 +46,15 @@ export type Options = {
    * Remove password of a protected pdf, after compression
    */
   removePasswordAfterCompression?: boolean;
+  /**
+   * How long to wait for Ghostscript, in milliseconds.
+   * Default is 120000 (2 minutes).
+   */
+  timeout?: number;
+  /**
+   * Cancels the Ghostscript process when aborted.
+   */
+  signal?: AbortSignal;
 };
 
 /**
