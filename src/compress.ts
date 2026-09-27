@@ -103,6 +103,14 @@ export function buildGsArgs(options: {
       '-dMonoImageDownsampleType=/Subsample',
       `-dMonoImageResolution=${options.imageQuality}`
     );
+  } else if (
+    options.resolution === 'ebook' ||
+    options.resolution === 'screen'
+  ) {
+    args.push(
+      '-dMonoImageDownsampleType=/Subsample',
+      '-dMonoImageResolution=150'
+    );
   }
 
   args.push(`-sOutputFile=${options.output}`);

@@ -28,7 +28,9 @@ export type Options = {
   resolution?: Resolution;
   /**
    * Image resolution in DPI. Must be between 1 and 600.
-   * When omitted, Ghostscript keeps the resolution from the selected preset.
+   * When set, color, gray, and monochrome images are resampled to this value.
+   * When omitted, color and gray keep the preset resolution. Monochrome images
+   * are resampled to 150 DPI for `ebook` and `screen`.
    */
   imageQuality?: number;
   /**

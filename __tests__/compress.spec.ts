@@ -25,7 +25,7 @@ describe('compress', () => {
       range: '',
     });
 
-    expect(compressedFile.length).toBeLessThan(originalFile.length);
+    expect(compressedFile.length).toBeLessThan(originalFile.length * 0.6);
     expect(compressedPDF.numpages).toEqual(originalPDF.numpages);
     expect(compressedPDF.numrender).toEqual(originalPDF.numrender);
     expect(compressedPDF.text).toEqual(originalPDF.text);

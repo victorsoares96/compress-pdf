@@ -18,13 +18,25 @@ function imageFlags(args: string[]): string[] {
 }
 
 describe('buildGsArgs image resolution', () => {
-  it('omits resolution flags when imageQuality is omitted', () => {
-    const args = buildGsArgs(base);
-    expect(imageFlags(args)).toEqual([]);
-    expect(args).toContain('-dPDFSETTINGS=/printer');
+  it('omits image flags for printer, prepress, and default when imageQuality is omitted', () => {
+    for (const resolution of ['printer', 'prepress', 'default']) {
+      const args = buildGsArgs({ ...base, resolution });
+      expect(imageFlags(args)).toEqual([]);
+      expect(args).toContain(`-dPDFSETTINGS=/${resolution}`);
+    }
   });
 
-  it('emits DPI flags only when imageQuality is set', () => {
+  it('downsamples only monochrome images to 150 DPI for ebook and screen', () => {
+    for (const resolution of ['ebook', 'screen']) {
+      const args = buildGsArgs({ ...base, resolution });
+      expect(imageFlags(args)).toEqual([
+        '-dMonoImageDownsampleType=/Subsample',
+        '-dMonoImageResolution=150',
+      ]);
+    }
+  });
+
+  it('applies imageQuality to color, gray, and monochrome images', () => {
     const args = buildGsArgs({ ...base, imageQuality: 300 });
     expect(args).toEqual(
       expect.arrayContaining([

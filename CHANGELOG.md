@@ -4,13 +4,13 @@
 
 ### 🐛 Bug Fixes
 
-- `imageQuality` no longer defaults to 100 DPI. That value was always sent to Ghostscript and overrode the `printer` and `prepress` presets (300 DPI). Resolution and downsample flags are now emitted only when `imageQuality` is set. Monochrome images use `/Subsample`; color and gray stay `/Bicubic`.
+- `imageQuality` no longer defaults to 100 DPI. That value was always sent to Ghostscript and overrode the `printer` and `prepress` presets. Color and gray flags are emitted only when `imageQuality` is set, with `/Bicubic`. Monochrome images use `/Subsample`. For `ebook` and `screen`, monochrome images are resampled to 150 DPI when `imageQuality` is omitted. `printer`, `prepress`, and `default` keep the preset's monochrome resolution.
 - Ghostscript failures no longer include the PDF password. The message is built from stderr, and the password is redacted from the error message and cause.
 - The CLI reads `COMPRESS_PDF_PASSWORD` when `--pdfPassword` is omitted. `--pdfPassword` is still accepted and is stored in shell history.
 
 ### ⚠️ Behavior
 
-- The default compression is the `ebook` preset on its own (150 DPI), not `ebook` resampled to 100 DPI.
+- The default compression uses the `ebook` preset for color and gray (150 DPI) and resamples monochrome images to 150 DPI. It is no longer `ebook` resampled to 100 DPI on every channel.
 
 ## [0.6.0] - Automatic Binary Download
 
