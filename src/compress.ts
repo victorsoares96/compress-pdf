@@ -47,13 +47,21 @@ function validateOptions(opts: Required<Options>): void {
     );
   }
 
-  if (opts.imageQuality < 1 || opts.imageQuality > 600) {
+  if (
+    !Number.isFinite(opts.imageQuality) ||
+    opts.imageQuality < 1 ||
+    opts.imageQuality > 600
+  ) {
     throw new CompressPdfError(
       `imageQuality must be between 1 and 600, got ${opts.imageQuality}`
     );
   }
 
-  if (opts.compatibilityLevel < 1 || opts.compatibilityLevel > 2) {
+  if (
+    !Number.isFinite(opts.compatibilityLevel) ||
+    opts.compatibilityLevel < 1 ||
+    opts.compatibilityLevel > 2
+  ) {
     throw new CompressPdfError(
       `compatibilityLevel must be between 1.0 and 2.0, got ${opts.compatibilityLevel}`
     );
