@@ -33,9 +33,12 @@ describe('runCli', () => {
   const logs: string[] = [];
   const errors: string[] = [];
 
+  const previousPassword = process.env.COMPRESS_PDF_PASSWORD;
+
   beforeEach(() => {
     logs.length = 0;
     errors.length = 0;
+    delete process.env.COMPRESS_PDF_PASSWORD;
     vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
       logs.push(args.map(String).join(' '));
     });
@@ -46,6 +49,11 @@ describe('runCli', () => {
   });
 
   afterEach(() => {
+    if (previousPassword === undefined) {
+      delete process.env.COMPRESS_PDF_PASSWORD;
+    } else {
+      process.env.COMPRESS_PDF_PASSWORD = previousPassword;
+    }
     vi.restoreAllMocks();
   });
 
@@ -60,6 +68,8 @@ describe('runCli', () => {
     const code = await runCli(['--help']);
     expect(code).toBe(0);
     expect(logs.join('\n')).toContain('Usage:');
+    expect(logs.join('\n')).toContain('COMPRESS_PDF_PASSWORD');
+    expect(logs.join('\n')).toContain('shell history');
   });
 
   it('prints help and exits 0 for -h', async () => {
@@ -158,6 +168,59 @@ describe('runCli', () => {
         pdfPassword: 'secret',
         removePasswordAfterCompression: true,
       });
+    } finally {
+      fs.unlinkSync(pdf);
+      fs.unlinkSync(outp);
+    }
+  });
+
+  it('uses COMPRESS_PDF_PASSWORD when --pdfPassword is omitted', async () => {
+    const pdf = path.join(os.tmpdir(), `compress-cli-env-${process.pid}.pdf`);
+    const outp = path.join(
+      os.tmpdir(),
+      `compress-cli-env-out-${process.pid}.pdf`
+    );
+    fs.writeFileSync(pdf, '%PDF');
+    process.env.COMPRESS_PDF_PASSWORD = 'from-env';
+    compressMock.mockResolvedValue(stubCompressResult(Buffer.from('x')));
+
+    try {
+      const code = await runCli(['-f', pdf, '-o', outp]);
+      expect(code).toBe(0);
+      expect(compressMock).toHaveBeenCalledWith(
+        pdf,
+        expect.objectContaining({ pdfPassword: 'from-env' })
+      );
+    } finally {
+      fs.unlinkSync(pdf);
+      fs.unlinkSync(outp);
+    }
+  });
+
+  it('prefers --pdfPassword over COMPRESS_PDF_PASSWORD', async () => {
+    const pdf = path.join(os.tmpdir(), `compress-cli-both-${process.pid}.pdf`);
+    const outp = path.join(
+      os.tmpdir(),
+      `compress-cli-both-out-${process.pid}.pdf`
+    );
+    fs.writeFileSync(pdf, '%PDF');
+    process.env.COMPRESS_PDF_PASSWORD = 'from-env';
+    compressMock.mockResolvedValue(stubCompressResult(Buffer.from('x')));
+
+    try {
+      const code = await runCli([
+        '-f',
+        pdf,
+        '-o',
+        outp,
+        '--pdfPassword',
+        'from-flag',
+      ]);
+      expect(code).toBe(0);
+      expect(compressMock).toHaveBeenCalledWith(
+        pdf,
+        expect.objectContaining({ pdfPassword: 'from-flag' })
+      );
     } finally {
       fs.unlinkSync(pdf);
       fs.unlinkSync(outp);
