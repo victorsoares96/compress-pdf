@@ -245,4 +245,48 @@ describe('runCli', () => {
       fs.unlinkSync(pdf);
     }
   });
+
+  it('exits 1 and prints help when a flag is unknown', async () => {
+    const pdf = path.join(os.tmpdir(), `compress-cli-typo-${process.pid}.pdf`);
+    const outp = path.join(
+      os.tmpdir(),
+      `compress-cli-typo-out-${process.pid}.pdf`
+    );
+    fs.writeFileSync(pdf, '%PDF');
+    compressMock.mockResolvedValue(stubCompressResult(Buffer.from('x')));
+
+    try {
+      const code = await runCli(['-f', pdf, '-o', outp, '--imageQualty', '50']);
+      expect(code).toBe(1);
+      expect(compressMock).not.toHaveBeenCalled();
+      const output = errors.join('\n');
+      expect(output).toContain('imageQualty');
+      expect(output).toContain('Usage:');
+      expect(fs.existsSync(outp)).toBe(false);
+    } finally {
+      fs.unlinkSync(pdf);
+    }
+  });
+
+  it('exits 1 before compressing when the resolution preset is unknown', async () => {
+    const pdf = path.join(
+      os.tmpdir(),
+      `compress-cli-preset-${process.pid}.pdf`
+    );
+    const outp = path.join(
+      os.tmpdir(),
+      `compress-cli-preset-out-${process.pid}.pdf`
+    );
+    fs.writeFileSync(pdf, '%PDF');
+    compressMock.mockResolvedValue(stubCompressResult(Buffer.from('x')));
+
+    try {
+      const code = await runCli(['-f', pdf, '-o', outp, '-r', 'print']);
+      expect(code).toBe(1);
+      expect(compressMock).not.toHaveBeenCalled();
+      expect(errors.join('\n')).toContain('Invalid resolution "print"');
+    } finally {
+      fs.unlinkSync(pdf);
+    }
+  });
 });

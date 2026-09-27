@@ -4,6 +4,8 @@
 
 ### 🐛 Bug Fixes
 
+- `imageQuality` and `compatibilityLevel` now reject `NaN` and other non-finite numbers before Ghostscript runs.
+- Unknown CLI flags exit 1 and print the error plus `--help`. A resolution outside `screen`, `ebook`, `printer`, `prepress`, and `default` is rejected before compression starts.
 - Compression results no longer replace `Buffer#buffer` with the Buffer itself. The property stays the native `ArrayBuffer`. `originalSize`, `compressedSize`, `compressionRatio`, and `duration` are unchanged.
 - Ghostscript failures no longer include the PDF password. The message is built from stderr, and the password is redacted from the error message and cause.
 - The CLI reads `COMPRESS_PDF_PASSWORD` when `--pdfPassword` is omitted. `--pdfPassword` is still accepted and is stored in shell history.

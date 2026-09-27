@@ -2,7 +2,7 @@
 import { parseArgs } from 'node:util';
 import fs from 'fs';
 import compress from '@/compress';
-import type { Resolution } from './types';
+import { VALID_RESOLUTIONS, type Resolution } from './types';
 
 export const helpText = `
 compress-pdf - Compress PDF files using Ghostscript
@@ -42,26 +42,39 @@ function getStringValue(
   return typeof value === 'string' ? value : undefined;
 }
 
+const cliOptions = {
+  file: { type: 'string', short: 'f' },
+  output: { type: 'string', short: 'o' },
+  resolution: { type: 'string', short: 'r' },
+  compatibilityLevel: { type: 'string' },
+  imageQuality: { type: 'string' },
+  gsModule: { type: 'string' },
+  pdfPassword: { type: 'string' },
+  removePasswordAfterCompression: { type: 'boolean', default: false },
+  help: { type: 'boolean', short: 'h', default: false },
+} as const;
+
+function parseCliArgs(userArgs: readonly string[]) {
+  return parseArgs({
+    args: [...userArgs],
+    options: cliOptions,
+    strict: true,
+  });
+}
+
 /**
  * Run the CLI with the given argument list (same shape as process.argv.slice(2)).
  * Returns a process exit code (0 success, 1 error).
  */
 export async function runCli(userArgs: readonly string[]): Promise<number> {
-  const { values } = parseArgs({
-    args: [...userArgs],
-    options: {
-      file: { type: 'string', short: 'f' },
-      output: { type: 'string', short: 'o' },
-      resolution: { type: 'string', short: 'r' },
-      compatibilityLevel: { type: 'string' },
-      imageQuality: { type: 'string' },
-      gsModule: { type: 'string' },
-      pdfPassword: { type: 'string' },
-      removePasswordAfterCompression: { type: 'boolean', default: false },
-      help: { type: 'boolean', short: 'h', default: false },
-    },
-    strict: false,
-  });
+  let values: ReturnType<typeof parseCliArgs>['values'];
+  try {
+    ({ values } = parseCliArgs(userArgs));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`${message}\n\n${helpText}`);
+    return 1;
+  }
 
   if (values.help || userArgs.length === 0) {
     console.log(helpText);
@@ -86,6 +99,18 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
 
   if (!fs.existsSync(file)) {
     console.error(`Error: File not found: ${file}`);
+    return 1;
+  }
+
+  if (
+    resolution &&
+    !VALID_RESOLUTIONS.includes(
+      resolution as (typeof VALID_RESOLUTIONS)[number]
+    )
+  ) {
+    console.error(
+      `Error: Invalid resolution "${resolution}". Must be one of: ${VALID_RESOLUTIONS.join(', ')}`
+    );
     return 1;
   }
 
