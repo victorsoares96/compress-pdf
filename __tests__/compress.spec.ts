@@ -64,6 +64,7 @@ describe('compress', () => {
 
     const compressedFile = await compress(originalFilePath, {
       pdfPassword: 'a17',
+      imageQuality: 100,
     });
     // https://gitlab.com/autokent/pdf-parse/-/merge_requests/4
     const compressedPDF = await testHelper.parsePDF({
