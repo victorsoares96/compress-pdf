@@ -5,6 +5,8 @@
 ### 🐛 Bug Fixes
 
 - `imageQuality` no longer defaults to 100 DPI. That value was always sent to Ghostscript and overrode the `printer` and `prepress` presets (300 DPI). Resolution and downsample flags are now emitted only when `imageQuality` is set. Monochrome images use `/Subsample`; color and gray stay `/Bicubic`.
+- Ghostscript failures no longer include the PDF password. The message is built from stderr, and the password is redacted from the error message and cause.
+- The CLI reads `COMPRESS_PDF_PASSWORD` when `--pdfPassword` is omitted. `--pdfPassword` is still accepted and is stored in shell history.
 
 ### ⚠️ Behavior
 

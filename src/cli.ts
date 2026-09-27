@@ -21,10 +21,14 @@ Options:
   --imageQuality <n>         Image resolution in DPI, 1-600.
                              Omitted by default; the preset resolution is used
   --gsModule <path>          Custom Ghostscript binary path
-  --pdfPassword <pass>       Password for protected PDFs
+  --pdfPassword <pass>       Password for protected PDFs.
+                             Stored in shell history; prefer COMPRESS_PDF_PASSWORD
   --removePasswordAfterCompression
                              Remove password protection after compression
   -h, --help                 Show this help message
+
+Environment:
+  COMPRESS_PDF_PASSWORD      PDF password when --pdfPassword is omitted
 
 Examples:
   npx compress-pdf -f input.pdf -o output.pdf
@@ -71,7 +75,8 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
   const compatibilityLevel = getStringValue(values.compatibilityLevel);
   const imageQuality = getStringValue(values.imageQuality);
   const gsModule = getStringValue(values.gsModule);
-  const pdfPassword = getStringValue(values.pdfPassword);
+  const pdfPassword =
+    getStringValue(values.pdfPassword) ?? process.env.COMPRESS_PDF_PASSWORD;
 
   if (!file || !output) {
     console.error(

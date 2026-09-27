@@ -29,10 +29,9 @@ type ResolvedOptions = Required<Omit<Options, 'imageQuality'>> & {
   imageQuality?: number;
 };
 
-const defaultOptions: ResolvedOptions = {
+const defaultOptions: Omit<ResolvedOptions, 'gsModule'> = {
   compatibilityLevel: 1.4,
   resolution: 'ebook',
-  gsModule: getBinPath(os.platform()),
   pdfPassword: '',
   removePasswordAfterCompression: false,
 };
@@ -124,6 +123,28 @@ export function buildGsArgs(options: {
   return args;
 }
 
+function redactSecret(text: string, secret: string): string {
+  if (!secret) return text;
+  return text.split(secret).join('***');
+}
+
+function outputText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Buffer.isBuffer(value)) return value.toString('utf8');
+  return '';
+}
+
+function redactCause(error: unknown, secret: string): unknown {
+  if (!secret || !(error instanceof Error)) return error;
+
+  const redacted = new Error(redactSecret(error.message, secret));
+  redacted.name = error.name;
+  if (error.stack) {
+    redacted.stack = redactSecret(error.stack, secret);
+  }
+  return redacted;
+}
+
 /**
  * Safely remove a file, ignoring errors if it doesn't exist.
  */
@@ -146,9 +167,11 @@ async function safeUnlink(filePath: string): Promise<void> {
 async function compress(file: string | Buffer, options?: Options) {
   const startTime = Date.now();
 
+  const userOptions = definedOptions(options);
   const mergedOptions: ResolvedOptions = {
     ...defaultOptions,
-    ...definedOptions(options),
+    ...userOptions,
+    gsModule: userOptions.gsModule ?? getBinPath(os.platform()),
   };
 
   validateOptions(mergedOptions);
@@ -194,10 +217,18 @@ async function compress(file: string | Buffer, options?: Options) {
     try {
       await execFile(gsModule, args);
     } catch (error) {
-      throw new CompressPdfError(
-        `Ghostscript failed to compress the PDF. ${error instanceof Error ? error.message : String(error)}`,
-        error
+      const stderr = redactSecret(
+        outputText(
+          error && typeof error === 'object' && 'stderr' in error
+            ? error.stderr
+            : undefined
+        ).trim(),
+        pdfPassword
       );
+      const message = stderr
+        ? `Ghostscript failed to compress the PDF. ${stderr}`
+        : 'Ghostscript failed to compress the PDF.';
+      throw new CompressPdfError(message, redactCause(error, pdfPassword));
     }
 
     const compressedBuffer = await fs.promises.readFile(output);
