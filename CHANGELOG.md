@@ -4,6 +4,7 @@
 
 ### 🐛 Bug Fixes
 
+- Ghostscript calls now use a 120 second timeout, a 16 MB stderr buffer, and an optional `signal`. A missing binary explains `COMPRESS_PDF_BIN_PATH` and manual installation. Input paths are resolved to absolute paths before Ghostscript sees them.
 - `imageQuality` and `compatibilityLevel` now reject `NaN` and other non-finite numbers before Ghostscript runs.
 - Unknown CLI flags exit 1 and print the error plus `--help`. A resolution outside `screen`, `ebook`, `printer`, `prepress`, and `default` is rejected before compression starts.
 - Compression results no longer replace `Buffer#buffer` with the Buffer itself. The property stays the native `ArrayBuffer`. `originalSize`, `compressedSize`, `compressionRatio`, and `duration` are unchanged.
