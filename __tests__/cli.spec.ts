@@ -18,7 +18,6 @@ function stubCompressResult(bytes: Buffer): Buffer & CompressResult {
   const compressedSize = bytes.length;
   const buf = Buffer.from(bytes);
   Object.defineProperties(buf, {
-    buffer: { value: buf, enumerable: false },
     originalSize: { value: originalSize, enumerable: false },
     compressedSize: { value: compressedSize, enumerable: false },
     compressionRatio: {
