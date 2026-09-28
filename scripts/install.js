@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
-const { execSync } = require('child_process');
+const { execFileSync, execSync } = require('child_process');
 
 const BASE_URL =
   'https://github.com/victorsoares96/compress-pdf/releases/download';
@@ -68,6 +68,8 @@ async function downloadFile(url, destination) {
 
 /**
  * Extract a .tar.xz archive using the system tar command with a Python fallback.
+ * Paths are arguments, not part of a shell command. The Python fallback refuses
+ * members that would be written outside the destination directory.
  */
 async function extractArchive(archivePath, outputDir) {
   console.log(`📂 Extracting archive to ${outputDir}...`);
@@ -78,26 +80,30 @@ async function extractArchive(archivePath, outputDir) {
 
   // tar -xJf works on Linux, macOS, and Windows 10+ (build 17063+)
   try {
-    execSync(`tar -xJf "${archivePath}" -C "${outputDir}"`, { stdio: 'pipe' });
+    execFileSync('tar', ['-xJf', archivePath, '-C', outputDir], {
+      stdio: 'pipe',
+    });
     console.log('✅ Extraction completed');
     return;
   } catch (_) {
     // fall through to Python fallback
   }
 
-  // Python fallback (lzma + tarfile are in stdlib since Python 3.3)
   try {
-    const py = `
-import tarfile, os
-with tarfile.open(r'${archivePath.replace(/\\/g, '\\\\')}', 'r:xz') as t:
-    t.extractall(r'${outputDir.replace(/\\/g, '\\\\')}')
-`.trim();
     const pythonBin = process.platform === 'win32' ? 'python' : 'python3';
-    execSync(
-      `${pythonBin} -c "${py
-        .replace(/\\/g, '\\\\')
-        .replace(/"/g, '\\"')
-        .replace(/\r?\n/g, ' ')}"`,
+    execFileSync(
+      pythonBin,
+      [
+        '-c',
+        [
+          'import sys, tarfile',
+          'archive, dest = sys.argv[1], sys.argv[2]',
+          'with tarfile.open(archive, "r:xz") as tar:',
+          '    tar.extractall(dest, filter="data")',
+        ].join('\n'),
+        archivePath,
+        outputDir,
+      ],
       { stdio: 'pipe' }
     );
     console.log('✅ Extraction completed (Python fallback)');
@@ -262,8 +268,13 @@ async function install() {
   }
 }
 
-// Run the installation
-install().catch((error) => {
-  console.error('Unexpected error during installation:', error);
-  process.exit(0);
-});
+// Run the installation only when this file is the program.
+// Tests import extractArchive without downloading Ghostscript.
+if (require.main === module) {
+  install().catch((error) => {
+    console.error('Unexpected error during installation:', error);
+    process.exit(0);
+  });
+}
+
+module.exports = { extractArchive };
