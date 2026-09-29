@@ -128,9 +128,8 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
       removePasswordAfterCompression:
         values.removePasswordAfterCompression as boolean,
       returnOriginalIfLarger: values.returnOriginalIfLarger as boolean,
+      output,
     });
-
-    fs.writeFileSync(output, result);
 
     const ratio = ((1 - result.compressionRatio) * 100).toFixed(1);
     const originalKB = (result.originalSize / 1024).toFixed(1);
@@ -139,7 +138,7 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
     console.log(`✅ PDF compressed successfully!`);
     console.log(`   ${originalKB} KB → ${compressedKB} KB (${ratio}% smaller)`);
     console.log(`   Time: ${result.duration}ms`);
-    console.log(`   Output: ${output}`);
+    console.log(`   Output: ${result.output}`);
     return 0;
   } catch (error) {
     console.error(

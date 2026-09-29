@@ -69,12 +69,13 @@ import { compress } from 'compress-pdf';
 })();
 ```
 
-`compress()` returns a `Buffer`. You can also read:
+`compress()` returns a `Buffer` with metadata. Pass `output` to write the file instead and get metadata plus the absolute path, without loading the compressed PDF into memory:
 
 - `originalSize` and `compressedSize`, in bytes
 - `compressionRatio`, `compressedSize / originalSize` (`0.65` means the file is 35% smaller)
 - `duration`, in milliseconds
-- `buffer`, the native `ArrayBuffer` behind those bytes
+- `buffer`, the native `ArrayBuffer` behind those bytes (Buffer return only)
+- `output`, the absolute path written (when `output` is set)
 
 ```tsx
 const result = await compress(pdf, {
@@ -83,6 +84,7 @@ const result = await compress(pdf, {
   pdfPassword: 'secret',
   timeout: 60_000,
   signal: controller.signal,
+  output: './compressed.pdf',
 });
 ```
 
@@ -97,6 +99,7 @@ const result = await compress(pdf, {
 | `timeout` | How long to wait for Ghostscript, in milliseconds. Default is `120000` (2 minutes). |
 | `signal` | `AbortSignal` that cancels the Ghostscript process. |
 | `returnOriginalIfLarger` | When `true`, keep the original PDF if Ghostscript output is not smaller. Default is `false`. |
+| `output` | Path to write the compressed PDF. When set, Ghostscript writes there and the return value is metadata plus that absolute path. |
 
 Failures throw `CompressPdfError`. If the binary cannot be found, the message tells you to set `COMPRESS_PDF_BIN_PATH` or install Ghostscript manually. `NaN` is rejected for `imageQuality` and `compatibilityLevel`.
 

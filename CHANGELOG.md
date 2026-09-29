@@ -4,6 +4,7 @@
 
 ### ✨ New Features
 
+- `output` writes the compressed PDF straight to a file path. Ghostscript writes to that path, sizes come from `stat`, and the return value is metadata plus the absolute path instead of a Buffer. The CLI passes `--output` into this option.
 - `returnOriginalIfLarger` keeps the original PDF when Ghostscript output is larger than or equal to the input. Default is `false`. The CLI flag is `--returnOriginalIfLarger`.
 
 ### 🐛 Bug Fixes

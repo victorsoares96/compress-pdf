@@ -60,6 +60,12 @@ export type Options = {
    * than or equal to the input. Default is `false`.
    */
   returnOriginalIfLarger?: boolean;
+  /**
+   * Write the compressed PDF to this path instead of returning the bytes.
+   * Ghostscript writes directly to the file so the result is not loaded
+   * into memory.
+   */
+  output?: string;
 };
 
 /**
@@ -74,6 +80,14 @@ export type CompressResult = {
   compressionRatio: number;
   /** Time taken in milliseconds */
   duration: number;
+};
+
+/**
+ * Result when `output` is set: metadata plus the absolute output path.
+ */
+export type CompressFileResult = CompressResult & {
+  /** Absolute path written by compression */
+  output: string;
 };
 
 /**
