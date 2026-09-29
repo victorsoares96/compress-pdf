@@ -10,6 +10,7 @@ import {
   CompressPdfError,
   type Options,
   type CompressResult,
+  type CompressFileResult,
 } from './types';
 
 const execFile = util.promisify(childProcess.execFile);
@@ -26,7 +27,9 @@ function definedOptions(options?: Options): Partial<Options> {
   ) as Partial<Options>;
 }
 
-const defaultOptions: Required<Omit<Options, 'gsModule' | 'signal'>> = {
+const defaultOptions: Required<
+  Omit<Options, 'gsModule' | 'signal' | 'output'>
+> = {
   compatibilityLevel: 1.4,
   resolution: 'ebook',
   imageQuality: 100,
@@ -36,9 +39,12 @@ const defaultOptions: Required<Omit<Options, 'gsModule' | 'signal'>> = {
   returnOriginalIfLarger: false,
 };
 
-type ResolvedOptions = Required<Omit<Options, 'gsModule' | 'signal'>> & {
+type ResolvedOptions = Required<
+  Omit<Options, 'gsModule' | 'signal' | 'output'>
+> & {
   gsModule: string;
   signal?: AbortSignal;
+  output?: string;
 };
 
 /**
@@ -187,15 +193,36 @@ async function safeUnlink(filePath: string): Promise<void> {
   }
 }
 
+async function writeOriginalTo(
+  file: string | Buffer,
+  destination: string
+): Promise<void> {
+  if (typeof file === 'string') {
+    await fs.promises.copyFile(path.resolve(file), destination);
+  } else {
+    await fs.promises.writeFile(destination, file);
+  }
+}
+
 /**
  * Compress a PDF file using Ghostscript.
  *
  * @param file - Path to the PDF file or a Buffer containing the PDF data.
- * @param options - Compression options.
- * @returns A CompressResult with the compressed buffer and metadata,
- *          or just the Buffer for backward compatibility when destructured.
+ * @param options - Compression options. When `output` is set, Ghostscript
+ *          writes to that path and the PDF bytes are not returned.
  */
-async function compress(file: string | Buffer, options?: Options) {
+async function compress(
+  file: string | Buffer,
+  options: Options & { output: string }
+): Promise<CompressFileResult>;
+async function compress(
+  file: string | Buffer,
+  options?: Options
+): Promise<Buffer & CompressResult>;
+async function compress(
+  file: string | Buffer,
+  options?: Options
+): Promise<(Buffer & CompressResult) | CompressFileResult> {
   const startTime = Date.now();
 
   const userOptions = definedOptions(options);
@@ -224,7 +251,13 @@ async function compress(file: string | Buffer, options?: Options) {
     throw new CompressPdfError(`File not found: ${file}`);
   }
 
-  const output = path.resolve(os.tmpdir(), `compress-pdf-${randomUUID()}`);
+  const userOutput =
+    typeof userOptions.output === 'string' && userOptions.output.length > 0
+      ? path.resolve(userOptions.output)
+      : undefined;
+  const gsOutput =
+    userOutput ?? path.resolve(os.tmpdir(), `compress-pdf-${randomUUID()}`);
+  const ownsTempOutput = userOutput === undefined;
   let tempFile: string | undefined;
 
   try {
@@ -239,7 +272,7 @@ async function compress(file: string | Buffer, options?: Options) {
     }
 
     const args = buildGsArgs({
-      output,
+      output: gsOutput,
       inputFile,
       compatibilityLevel,
       resolution,
@@ -290,16 +323,32 @@ async function compress(file: string | Buffer, options?: Options) {
       throw new CompressPdfError(message, redactCause(error, pdfPassword));
     }
 
-    const ghostscriptBuffer = await fs.promises.readFile(output);
-
     const originalSize =
       typeof file === 'string'
         ? (await fs.promises.stat(file)).size
         : file.length;
-
+    const ghostscriptSize = (await fs.promises.stat(gsOutput)).size;
     const duration = Date.now() - startTime;
     const useOriginal =
-      returnOriginalIfLarger && ghostscriptBuffer.length >= originalSize;
+      returnOriginalIfLarger && ghostscriptSize >= originalSize;
+
+    if (userOutput) {
+      if (useOriginal) {
+        await writeOriginalTo(file, userOutput);
+      }
+
+      const compressedSize = useOriginal ? originalSize : ghostscriptSize;
+      const compressionRatio =
+        originalSize > 0 ? compressedSize / originalSize : 0;
+
+      return {
+        originalSize,
+        compressedSize,
+        compressionRatio,
+        duration,
+        output: userOutput,
+      };
+    }
 
     let resultBuffer: Buffer;
     if (useOriginal) {
@@ -308,7 +357,7 @@ async function compress(file: string | Buffer, options?: Options) {
           ? await fs.promises.readFile(file)
           : Buffer.from(file);
     } else {
-      resultBuffer = ghostscriptBuffer;
+      resultBuffer = await fs.promises.readFile(gsOutput);
     }
 
     const compressedSize = useOriginal ? originalSize : resultBuffer.length;
@@ -330,7 +379,7 @@ async function compress(file: string | Buffer, options?: Options) {
   } finally {
     // Always clean up temporary files, even on error
     if (tempFile) await safeUnlink(tempFile);
-    await safeUnlink(output);
+    if (ownsTempOutput) await safeUnlink(gsOutput);
   }
 }
 

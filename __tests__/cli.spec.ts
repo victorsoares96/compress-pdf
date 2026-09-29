@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import compress from '@/compress';
-import type { CompressResult } from '../src/types';
+import type { CompressFileResult } from '../src/types';
 
 import { runCli } from '../src/cli';
 
@@ -13,20 +13,23 @@ vi.mock('@/compress', () => ({
 
 const compressMock = vi.mocked(compress);
 
-function stubCompressResult(bytes: Buffer): Buffer & CompressResult {
+function stubFileResult(
+  outputPath: string,
+  bytes: Buffer = Buffer.from('%PDF-out'),
+  writeFile = true
+): CompressFileResult {
   const originalSize = 2048;
   const compressedSize = bytes.length;
-  const buf = Buffer.from(bytes);
-  Object.defineProperties(buf, {
-    originalSize: { value: originalSize, enumerable: false },
-    compressedSize: { value: compressedSize, enumerable: false },
-    compressionRatio: {
-      value: originalSize > 0 ? compressedSize / originalSize : 0,
-      enumerable: false,
-    },
-    duration: { value: 42, enumerable: false },
-  });
-  return buf as Buffer & CompressResult;
+  if (writeFile) {
+    fs.writeFileSync(outputPath, bytes);
+  }
+  return {
+    originalSize,
+    compressedSize,
+    compressionRatio: originalSize > 0 ? compressedSize / originalSize : 0,
+    duration: 42,
+    output: path.resolve(outputPath),
+  };
 }
 
 describe('runCli', () => {
@@ -111,7 +114,9 @@ describe('runCli', () => {
     const pdf = path.join(os.tmpdir(), `compress-cli-ok-${process.pid}.pdf`);
     const outp = path.join(os.tmpdir(), `compress-cli-out-${process.pid}.pdf`);
     fs.writeFileSync(pdf, '%PDF-1.4');
-    compressMock.mockResolvedValue(stubCompressResult(Buffer.from('%PDF-out')));
+    compressMock.mockResolvedValue(
+      stubFileResult(outp, Buffer.from('%PDF-out')) as never
+    );
 
     try {
       const code = await runCli(['-f', pdf, '-o', outp, '-r', 'screen']);
@@ -125,13 +130,15 @@ describe('runCli', () => {
         pdfPassword: undefined,
         removePasswordAfterCompression: false,
         returnOriginalIfLarger: false,
+        output: outp,
       });
       expect(logs.some((l) => l.includes('PDF compressed successfully'))).toBe(
         true
       );
+      expect(logs.some((l) => l.includes(path.resolve(outp)))).toBe(true);
     } finally {
       fs.unlinkSync(pdf);
-      fs.unlinkSync(outp);
+      if (fs.existsSync(outp)) fs.unlinkSync(outp);
     }
   });
 
@@ -142,7 +149,9 @@ describe('runCli', () => {
       `compress-cli-opt-out-${process.pid}.pdf`
     );
     fs.writeFileSync(pdf, '%PDF');
-    compressMock.mockResolvedValue(stubCompressResult(Buffer.from('x')));
+    compressMock.mockResolvedValue(
+      stubFileResult(outp, Buffer.from('x')) as never
+    );
 
     try {
       const code = await runCli([
@@ -170,10 +179,11 @@ describe('runCli', () => {
         pdfPassword: 'secret',
         removePasswordAfterCompression: true,
         returnOriginalIfLarger: true,
+        output: outp,
       });
     } finally {
       fs.unlinkSync(pdf);
-      fs.unlinkSync(outp);
+      if (fs.existsSync(outp)) fs.unlinkSync(outp);
     }
   });
 
@@ -185,18 +195,20 @@ describe('runCli', () => {
     );
     fs.writeFileSync(pdf, '%PDF');
     process.env.COMPRESS_PDF_PASSWORD = 'from-env';
-    compressMock.mockResolvedValue(stubCompressResult(Buffer.from('x')));
+    compressMock.mockResolvedValue(
+      stubFileResult(outp, Buffer.from('x')) as never
+    );
 
     try {
       const code = await runCli(['-f', pdf, '-o', outp]);
       expect(code).toBe(0);
       expect(compressMock).toHaveBeenCalledWith(
         pdf,
-        expect.objectContaining({ pdfPassword: 'from-env' })
+        expect.objectContaining({ pdfPassword: 'from-env', output: outp })
       );
     } finally {
       fs.unlinkSync(pdf);
-      fs.unlinkSync(outp);
+      if (fs.existsSync(outp)) fs.unlinkSync(outp);
     }
   });
 
@@ -208,7 +220,9 @@ describe('runCli', () => {
     );
     fs.writeFileSync(pdf, '%PDF');
     process.env.COMPRESS_PDF_PASSWORD = 'from-env';
-    compressMock.mockResolvedValue(stubCompressResult(Buffer.from('x')));
+    compressMock.mockResolvedValue(
+      stubFileResult(outp, Buffer.from('x')) as never
+    );
 
     try {
       const code = await runCli([
@@ -222,11 +236,11 @@ describe('runCli', () => {
       expect(code).toBe(0);
       expect(compressMock).toHaveBeenCalledWith(
         pdf,
-        expect.objectContaining({ pdfPassword: 'from-flag' })
+        expect.objectContaining({ pdfPassword: 'from-flag', output: outp })
       );
     } finally {
       fs.unlinkSync(pdf);
-      fs.unlinkSync(outp);
+      if (fs.existsSync(outp)) fs.unlinkSync(outp);
     }
   });
 
@@ -256,7 +270,9 @@ describe('runCli', () => {
       `compress-cli-typo-out-${process.pid}.pdf`
     );
     fs.writeFileSync(pdf, '%PDF');
-    compressMock.mockResolvedValue(stubCompressResult(Buffer.from('x')));
+    compressMock.mockResolvedValue(
+      stubFileResult(outp, Buffer.from('x'), false) as never
+    );
 
     try {
       const code = await runCli(['-f', pdf, '-o', outp, '--imageQualty', '50']);
@@ -281,7 +297,9 @@ describe('runCli', () => {
       `compress-cli-preset-out-${process.pid}.pdf`
     );
     fs.writeFileSync(pdf, '%PDF');
-    compressMock.mockResolvedValue(stubCompressResult(Buffer.from('x')));
+    compressMock.mockResolvedValue(
+      stubFileResult(outp, Buffer.from('x'), false) as never
+    );
 
     try {
       const code = await runCli(['-f', pdf, '-o', outp, '-r', 'print']);
@@ -290,6 +308,7 @@ describe('runCli', () => {
       expect(errors.join('\n')).toContain('Invalid resolution "print"');
     } finally {
       fs.unlinkSync(pdf);
+      if (fs.existsSync(outp)) fs.unlinkSync(outp);
     }
   });
 });
