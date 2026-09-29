@@ -130,6 +130,7 @@ describe('runCli', () => {
         pdfPassword: undefined,
         removePasswordAfterCompression: false,
         returnOriginalIfLarger: false,
+        targetSize: undefined,
         output: outp,
       });
       expect(logs.some((l) => l.includes('PDF compressed successfully'))).toBe(
@@ -169,6 +170,8 @@ describe('runCli', () => {
         'secret',
         '--removePasswordAfterCompression',
         '--returnOriginalIfLarger',
+        '--targetSize',
+        '2048',
       ]);
       expect(code).toBe(0);
       expect(compressMock).toHaveBeenCalledWith(pdf, {
@@ -179,6 +182,7 @@ describe('runCli', () => {
         pdfPassword: 'secret',
         removePasswordAfterCompression: true,
         returnOriginalIfLarger: true,
+        targetSize: 2048,
         output: outp,
       });
     } finally {

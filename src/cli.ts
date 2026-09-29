@@ -25,6 +25,7 @@ Options:
   --removePasswordAfterCompression
                              Remove password protection after compression
   --returnOriginalIfLarger   Keep the original PDF when compression is not smaller
+  --targetSize <bytes>       Keep trying milder settings until the file fits
   -h, --help                 Show this help message
 
 Environment:
@@ -53,6 +54,7 @@ const cliOptions = {
   pdfPassword: { type: 'string' },
   removePasswordAfterCompression: { type: 'boolean', default: false },
   returnOriginalIfLarger: { type: 'boolean', default: false },
+  targetSize: { type: 'string' },
   help: { type: 'boolean', short: 'h', default: false },
 } as const;
 
@@ -89,6 +91,7 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
   const compatibilityLevel = getStringValue(values.compatibilityLevel);
   const imageQuality = getStringValue(values.imageQuality);
   const gsModule = getStringValue(values.gsModule);
+  const targetSize = getStringValue(values.targetSize);
   const pdfPassword =
     getStringValue(values.pdfPassword) ?? process.env.COMPRESS_PDF_PASSWORD;
 
@@ -128,6 +131,7 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
       removePasswordAfterCompression:
         values.removePasswordAfterCompression as boolean,
       returnOriginalIfLarger: values.returnOriginalIfLarger as boolean,
+      targetSize: targetSize ? Number(targetSize) : undefined,
       output,
     });
 
