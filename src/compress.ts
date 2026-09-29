@@ -8,9 +8,17 @@ import getBinPath from './get-bin-path';
 import analyze, { presetForKind } from './analyze';
 import { assertMetadata, buildDocinfoProgram } from './metadata';
 import {
+  assertPdfa,
+  buildPdfaDefinition,
+  findDefaultRgbIcc,
+  pdfaCompatibility,
+  pdfaFlags,
+} from './pdfa';
+import {
   VALID_RESOLUTIONS,
   CompressPdfError,
   type Options,
+  type PdfaLevel,
   type PdfMetadata,
   type Resolution,
   type CompressResult,
@@ -41,6 +49,7 @@ const defaultOptions: Required<
     | 'targetSize'
     | 'resolution'
     | 'setMetadata'
+    | 'pdfa'
   >
 > & { resolution: Resolution } = {
   compatibilityLevel: 1.4,
@@ -63,6 +72,7 @@ type ResolvedOptions = Required<
     | 'targetSize'
     | 'resolution'
     | 'setMetadata'
+    | 'pdfa'
   >
 > & {
   gsModule: string;
@@ -71,6 +81,7 @@ type ResolvedOptions = Required<
   output?: string;
   targetSize?: number;
   setMetadata?: PdfMetadata;
+  pdfa?: PdfaLevel;
 };
 
 type AttemptSettings = {
@@ -165,6 +176,8 @@ function buildGsArgs(options: {
   stripMetadata: boolean;
   sanitize: boolean;
   setMetadata?: PdfMetadata;
+  pdfa?: PdfaLevel;
+  pdfaDefinition?: string;
 }): string[] {
   const args: string[] = [
     '-q',
@@ -187,6 +200,10 @@ function buildGsArgs(options: {
     `-sOutputFile=${options.output}`,
   ];
 
+  if (options.pdfa) {
+    args.push(...pdfaFlags(options.pdfa));
+  }
+
   if (options.pdfPassword) {
     args.push(`-sPDFPassword=${options.pdfPassword}`);
   }
@@ -203,6 +220,9 @@ function buildGsArgs(options: {
     sanitize: options.sanitize,
     setMetadata: options.setMetadata,
   });
+  if (options.pdfaDefinition) {
+    args.push(options.pdfaDefinition);
+  }
   if (docinfo) {
     args.push('-f', options.inputFile, '-c', docinfo);
   } else {
@@ -358,6 +378,17 @@ async function compress(
   const startTime = Date.now();
 
   const userOptions = definedOptions(options);
+  assertPdfa(userOptions.pdfa);
+  if (userOptions.pdfa) {
+    const requiredLevel = pdfaCompatibility(userOptions.pdfa);
+    if (userOptions.compatibilityLevel === undefined) {
+      userOptions.compatibilityLevel = requiredLevel;
+    } else if (userOptions.compatibilityLevel !== requiredLevel) {
+      throw new CompressPdfError(
+        `compatibilityLevel must be ${requiredLevel} when pdfa is ${userOptions.pdfa}, got ${userOptions.compatibilityLevel}`
+      );
+    }
+  }
   const { resolution: requestedResolution, ...optionsWithoutResolution } =
     userOptions;
   const resolvedGsModule = userOptions.gsModule ?? getBinPath(os.platform());
@@ -399,6 +430,7 @@ async function compress(
     stripMetadata,
     sanitize,
     setMetadata,
+    pdfa,
   } = mergedOptions;
 
   // Validate that source file exists (when path is provided)
@@ -420,9 +452,19 @@ async function compress(
       : [{ resolution: resolution as Resolution, imageQuality }];
 
   let tempInput: string | undefined;
+  let pdfaDefinition: string | undefined;
   const attemptOutputs: string[] = [];
 
   try {
+    if (pdfa) {
+      const iccPath = findDefaultRgbIcc(gsModule);
+      pdfaDefinition = path.resolve(
+        os.tmpdir(),
+        `compress-pdf-pdfa-${randomUUID()}.ps`
+      );
+      await fs.promises.writeFile(pdfaDefinition, buildPdfaDefinition(iccPath));
+    }
+
     let inputFile: string;
 
     if (typeof file === 'string') {
@@ -476,6 +518,8 @@ async function compress(
         stripMetadata,
         sanitize,
         setMetadata,
+        pdfa,
+        pdfaDefinition,
       });
 
       let size: number;
@@ -589,6 +633,7 @@ async function compress(
     return resultBuffer as Buffer & CompressResult;
   } finally {
     if (tempInput) await safeUnlink(tempInput);
+    if (pdfaDefinition) await safeUnlink(pdfaDefinition);
     await Promise.all(attemptOutputs.map((filePath) => safeUnlink(filePath)));
   }
 }

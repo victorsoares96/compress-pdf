@@ -4,6 +4,7 @@
 
 ### ✨ New Features
 
+- `pdfa` writes a PDF/A-1b, PDF/A-2b, or PDF/A-3b file in the same Ghostscript pass. Omitted by default. `1b` uses PDF 1.4 and `2b` / `3b` use PDF 1.7. Color is converted to RGB. The CLI flag is `--pdfa <1b|2b|3b>`.
 - `stripMetadata` clears title, author, subject, keywords, and creator on the compressed PDF. `setMetadata` writes the fields you pass. `sanitize` clears that info, and Ghostscript rebuilds the extra metadata block from the cleared values. All three default to off. Ghostscript still writes its own producer and dates.
 - `analyze(file)` reports pages, images, the highest image DPI, fonts, and whether the PDF looks scanned, vector, or mixed. `resolution: 'auto'` picks `screen`, `ebook`, or `printer` from that. The CLI accepts `-r auto`.
 - `output` writes the compressed PDF straight to a file path. Ghostscript writes to that path, sizes come from `stat`, and the return value is metadata plus the absolute path instead of a Buffer. The CLI passes `--output` into this option.

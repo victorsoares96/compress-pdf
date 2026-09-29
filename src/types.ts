@@ -48,8 +48,25 @@ export type PdfMetadata = {
   keywords?: string;
 };
 
+/**
+ * PDF/A level Ghostscript can write. Only conformance `b` exists here.
+ */
+export type PdfaLevel = '1b' | '2b' | '3b';
+
 export type Options = {
+  /**
+   * PDF compatibility level from 1.0 to 2.0. Default is `1.4`.
+   * When `pdfa` is set and this is omitted, `1b` uses `1.4` and
+   * `2b` / `3b` use `1.7`. A value that does not match `pdfa` is rejected.
+   */
   compatibilityLevel?: number;
+  /**
+   * Write a PDF/A file in the same Ghostscript pass. Omitted by default.
+   * `1b` is PDF 1.4. `2b` and `3b` are PDF 1.7. Color is converted to RGB.
+   * Features that cannot be kept are dropped. Ghostscript's own producer,
+   * dates, and PDF/A identification block stay.
+   */
+  pdfa?: PdfaLevel;
   /**
    * Can be
    *

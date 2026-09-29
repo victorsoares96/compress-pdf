@@ -5,8 +5,10 @@ import compress from '@/compress';
 import {
   VALID_RESOLUTIONS,
   type PdfMetadata,
+  type PdfaLevel,
   type ResolutionSetting,
 } from './types';
+import { isPdfaLevel } from './pdfa';
 
 export const helpText = `
 compress-pdf - Compress PDF files using Ghostscript
@@ -22,6 +24,7 @@ Options:
   -r, --resolution <preset>  screen | ebook | printer | prepress | default | auto
                              (default: ebook). auto picks screen, ebook, or printer
   --compatibilityLevel <n>   PDF compatibility level (default: 1.4)
+  --pdfa <level>             Write PDF/A in the same pass: 1b, 2b, or 3b
   --imageQuality <n>         Image resolution/quality in DPI, 1-600 (default: 100)
   --gsModule <path>          Custom Ghostscript binary path
   --pdfPassword <pass>       Password for protected PDFs.
@@ -48,6 +51,7 @@ Examples:
   npx compress-pdf -f protected.pdf -o output.pdf --pdfPassword mypass
   npx compress-pdf -f input.pdf -o output.pdf --stripMetadata
   npx compress-pdf -f input.pdf -o output.pdf --title "Report" --author "Ada"
+  npx compress-pdf -f input.pdf -o output.pdf --pdfa 1b
 `;
 
 function getStringValue(
@@ -80,6 +84,7 @@ const cliOptions = {
   output: { type: 'string', short: 'o' },
   resolution: { type: 'string', short: 'r' },
   compatibilityLevel: { type: 'string' },
+  pdfa: { type: 'string' },
   imageQuality: { type: 'string' },
   gsModule: { type: 'string' },
   pdfPassword: { type: 'string' },
@@ -126,6 +131,7 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
   const output = getStringValue(values.output);
   const resolution = getStringValue(values.resolution);
   const compatibilityLevel = getStringValue(values.compatibilityLevel);
+  const pdfa = getStringValue(values.pdfa);
   const imageQuality = getStringValue(values.imageQuality);
   const gsModule = getStringValue(values.gsModule);
   const targetSize = getStringValue(values.targetSize);
@@ -141,6 +147,11 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
 
   if (!fs.existsSync(file)) {
     console.error(`Error: File not found: ${file}`);
+    return 1;
+  }
+
+  if (pdfa !== undefined && !isPdfaLevel(pdfa)) {
+    console.error(`Error: Invalid pdfa "${pdfa}". Must be one of: 1b, 2b, 3b`);
     return 1;
   }
 
@@ -163,6 +174,7 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
       compatibilityLevel: compatibilityLevel
         ? Number(compatibilityLevel)
         : undefined,
+      pdfa: pdfa as PdfaLevel | undefined,
       imageQuality: imageQuality ? Number(imageQuality) : undefined,
       gsModule,
       pdfPassword,
