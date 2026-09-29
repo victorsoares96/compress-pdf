@@ -5,6 +5,7 @@ import os from 'os';
 import childProcess from 'child_process';
 import { randomUUID } from 'crypto';
 import getBinPath from './get-bin-path';
+import analyze, { presetForKind } from './analyze';
 import {
   VALID_RESOLUTIONS,
   CompressPdfError,
@@ -30,8 +31,8 @@ function definedOptions(options?: Options): Partial<Options> {
 }
 
 const defaultOptions: Required<
-  Omit<Options, 'gsModule' | 'signal' | 'output' | 'targetSize'>
-> = {
+  Omit<Options, 'gsModule' | 'signal' | 'output' | 'targetSize' | 'resolution'>
+> & { resolution: Resolution } = {
   compatibilityLevel: 1.4,
   resolution: 'ebook',
   imageQuality: 100,
@@ -42,9 +43,10 @@ const defaultOptions: Required<
 };
 
 type ResolvedOptions = Required<
-  Omit<Options, 'gsModule' | 'signal' | 'output' | 'targetSize'>
+  Omit<Options, 'gsModule' | 'signal' | 'output' | 'targetSize' | 'resolution'>
 > & {
   gsModule: string;
+  resolution: Resolution;
   signal?: AbortSignal;
   output?: string;
   targetSize?: number;
@@ -321,10 +323,29 @@ async function compress(
   const startTime = Date.now();
 
   const userOptions = definedOptions(options);
+  const { resolution: requestedResolution, ...optionsWithoutResolution } =
+    userOptions;
+  const resolvedGsModule = userOptions.gsModule ?? getBinPath(os.platform());
+  let resolvedResolution: Resolution = defaultOptions.resolution;
+  if (requestedResolution && requestedResolution !== 'auto') {
+    resolvedResolution = requestedResolution;
+  }
+
+  if (requestedResolution === 'auto') {
+    const info = await analyze(file, {
+      gsModule: resolvedGsModule,
+      pdfPassword: userOptions.pdfPassword,
+      timeout: userOptions.timeout,
+      signal: userOptions.signal,
+    });
+    resolvedResolution = presetForKind(info.kind);
+  }
+
   const mergedOptions: ResolvedOptions = {
     ...defaultOptions,
-    ...userOptions,
-    gsModule: userOptions.gsModule ?? getBinPath(os.platform()),
+    ...optionsWithoutResolution,
+    gsModule: resolvedGsModule,
+    resolution: resolvedResolution,
   };
 
   validateOptions(mergedOptions);

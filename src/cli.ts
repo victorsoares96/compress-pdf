@@ -2,7 +2,7 @@
 import { parseArgs } from 'node:util';
 import fs from 'fs';
 import compress from '@/compress';
-import { VALID_RESOLUTIONS, type Resolution } from './types';
+import { VALID_RESOLUTIONS, type ResolutionSetting } from './types';
 
 export const helpText = `
 compress-pdf - Compress PDF files using Ghostscript
@@ -15,8 +15,8 @@ Required:
   -o, --output <path>        Path to save the compressed PDF
 
 Options:
-  -r, --resolution <preset>  Compression preset: screen | ebook | printer | prepress | default
-                             (default: ebook)
+  -r, --resolution <preset>  screen | ebook | printer | prepress | default | auto
+                             (default: ebook). auto picks screen, ebook, or printer
   --compatibilityLevel <n>   PDF compatibility level (default: 1.4)
   --imageQuality <n>         Image resolution/quality in DPI, 1-600 (default: 100)
   --gsModule <path>          Custom Ghostscript binary path
@@ -109,19 +109,20 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
 
   if (
     resolution &&
+    resolution !== 'auto' &&
     !VALID_RESOLUTIONS.includes(
       resolution as (typeof VALID_RESOLUTIONS)[number]
     )
   ) {
     console.error(
-      `Error: Invalid resolution "${resolution}". Must be one of: ${VALID_RESOLUTIONS.join(', ')}`
+      `Error: Invalid resolution "${resolution}". Must be one of: ${VALID_RESOLUTIONS.join(', ')}, auto`
     );
     return 1;
   }
 
   try {
     const result = await compress(file, {
-      resolution: resolution ? (resolution as Resolution) : undefined,
+      resolution: resolution ? (resolution as ResolutionSetting) : undefined,
       compatibilityLevel: compatibilityLevel
         ? Number(compatibilityLevel)
         : undefined,

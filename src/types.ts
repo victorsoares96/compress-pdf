@@ -8,6 +8,35 @@ export const VALID_RESOLUTIONS = [
 
 export type Resolution = (typeof VALID_RESOLUTIONS)[number];
 
+/**
+ * `auto` is not a Ghostscript preset. `compress` turns it into
+ * `screen`, `ebook`, or `printer` after `analyze`.
+ */
+export type ResolutionSetting = Resolution | 'auto';
+
+export type PdfKind = 'scanned' | 'vector' | 'mixed';
+
+/**
+ * What a PDF is made of. `estimatedGain` is a rough guess of how much
+ * compression might save, from 0 to 1, not a measured result.
+ */
+export type PdfAnalysis = {
+  pages: number;
+  images: number;
+  /** Highest image DPI found, or null when the PDF has no images. */
+  maxImageDpi: number | null;
+  fonts: number;
+  kind: PdfKind;
+  estimatedGain: number;
+};
+
+export type AnalyzeOptions = {
+  gsModule?: string;
+  pdfPassword?: string;
+  timeout?: number;
+  signal?: AbortSignal;
+};
+
 export type Options = {
   compatibilityLevel?: number;
   /**
@@ -23,9 +52,12 @@ export type Options = {
    *
    * `default` selects output intended to be useful across a wide variety of uses, possibly at the expense of a larger output file.
    *
-   * Default is `ebook`
+   * Default is `ebook`.
+   *
+   * `auto` looks at the PDF and picks `screen` (scanned), `ebook` (mixed),
+   * or `printer` (vector). It is never sent to Ghostscript.
    */
-  resolution?: Resolution;
+  resolution?: ResolutionSetting;
   /**
    * Set quality of pdf images (DPI).
    * Must be between 1 and 600.
