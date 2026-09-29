@@ -291,6 +291,30 @@ describe('runCli', () => {
     }
   });
 
+  it('accepts resolution auto and passes it to compress', async () => {
+    const pdf = path.join(os.tmpdir(), `compress-cli-auto-${process.pid}.pdf`);
+    const outp = path.join(
+      os.tmpdir(),
+      `compress-cli-auto-out-${process.pid}.pdf`
+    );
+    fs.writeFileSync(pdf, '%PDF');
+    compressMock.mockResolvedValue(
+      stubFileResult(outp, Buffer.from('x'), false) as never
+    );
+
+    try {
+      const code = await runCli(['-f', pdf, '-o', outp, '-r', 'auto']);
+      expect(code).toBe(0);
+      expect(compressMock).toHaveBeenCalledWith(
+        pdf,
+        expect.objectContaining({ resolution: 'auto', output: outp })
+      );
+    } finally {
+      fs.unlinkSync(pdf);
+      if (fs.existsSync(outp)) fs.unlinkSync(outp);
+    }
+  });
+
   it('exits 1 before compressing when the resolution preset is unknown', async () => {
     const pdf = path.join(
       os.tmpdir(),

@@ -88,19 +88,36 @@ const result = await compress(pdf, {
 });
 ```
 
-| Option | Description |
-| --- | --- |
-| `resolution` | `screen`, `ebook`, `printer`, `prepress`, or `default`. Default is `ebook`. |
-| `compatibilityLevel` | PDF compatibility level from `1.0` to `2.0`. Default is `1.4`. |
-| `imageQuality` | Image resolution in DPI, from `1` to `600`. Default is `100`. |
-| `gsModule` | Path to the Ghostscript binary, such as `/usr/bin/gs`. |
-| `pdfPassword` | Password for a protected PDF. |
-| `removePasswordAfterCompression` | Drop password protection from the compressed file. |
-| `timeout` | How long to wait for Ghostscript, in milliseconds. Default is `120000` (2 minutes). |
-| `signal` | `AbortSignal` that cancels the Ghostscript process. |
-| `returnOriginalIfLarger` | When `true`, keep the original PDF if Ghostscript output is not smaller. Default is `false`. |
-| `output` | Path to write the compressed PDF. When set, Ghostscript writes there and the return value is metadata plus that absolute path. |
-| `targetSize` | Max size in bytes. Tries up to 6 milder preset/DPI settings and returns the first result that fits, or the smallest attempt if none fit. |
+| Option                           | Description                                                                                                                              |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolution`                     | `screen`, `ebook`, `printer`, `prepress`, `default`, or `auto`. Default is `ebook`. `auto` picks a preset from `analyze`.                |
+| `compatibilityLevel`             | PDF compatibility level from `1.0` to `2.0`. Default is `1.4`.                                                                           |
+| `imageQuality`                   | Image resolution in DPI, from `1` to `600`. Default is `100`.                                                                            |
+| `gsModule`                       | Path to the Ghostscript binary, such as `/usr/bin/gs`.                                                                                   |
+| `pdfPassword`                    | Password for a protected PDF.                                                                                                            |
+| `removePasswordAfterCompression` | Drop password protection from the compressed file.                                                                                       |
+| `timeout`                        | How long to wait for Ghostscript, in milliseconds. Default is `120000` (2 minutes).                                                      |
+| `signal`                         | `AbortSignal` that cancels the Ghostscript process.                                                                                      |
+| `returnOriginalIfLarger`         | When `true`, keep the original PDF if Ghostscript output is not smaller. Default is `false`.                                             |
+| `output`                         | Path to write the compressed PDF. When set, Ghostscript writes there and the return value is metadata plus that absolute path.           |
+| `targetSize`                     | Max size in bytes. Tries up to 6 milder preset/DPI settings and returns the first result that fits, or the smallest attempt if none fit. |
+
+`analyze(file)` reads the PDF and returns pages, images, the highest image DPI, fonts, and a kind:
+
+- `scanned` when the PDF has images and almost no fonts (no fonts, or fewer than one font for every ten images)
+- `vector` when it has fonts and no images
+- `mixed` otherwise
+
+`estimatedGain` (`0.6`, `0.3`, or `0.1`) is a rough guess of how much compression might save, not a measurement.
+
+`resolution: 'auto'` uses that kind: scanned files use `screen`, mixed files use `ebook`, and vector files use `printer`. Leaving `resolution` out still uses `ebook`. `auto` is never sent to Ghostscript. With `targetSize`, the chosen preset is where the search starts.
+
+```tsx
+import { analyze, compress } from 'compress-pdf';
+
+const info = await analyze('./scan.pdf');
+const compressed = await compress('./scan.pdf', { resolution: 'auto' });
+```
 
 Failures throw `CompressPdfError`. If the binary cannot be found, the message tells you to set `COMPRESS_PDF_BIN_PATH` or install Ghostscript manually. `NaN` is rejected for `imageQuality` and `compatibilityLevel`.
 
@@ -114,7 +131,7 @@ Required:
   -o, --output <path>
 
 Options:
-  -r, --resolution <preset>     screen | ebook | printer | prepress | default (default: ebook)
+  -r, --resolution <preset>     screen | ebook | printer | prepress | default | auto (default: ebook)
   --compatibilityLevel <n>      PDF compatibility level (default: 1.4)
   --imageQuality <n>            Image resolution in DPI, 1-600 (default: 100)
   --gsModule <path>             Ghostscript binary, for example /usr/bin/gs
@@ -125,7 +142,7 @@ Options:
   -h, --help
 ```
 
-An unknown flag exits with code 1 and prints the error plus the help text. A resolution outside the list above is rejected before compression starts.
+An unknown flag exits with code 1 and prints the error plus the help text. A resolution outside the list above is rejected before compression starts. `-r auto` is accepted.
 
 ### Usage with Docker
 
