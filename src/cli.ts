@@ -2,7 +2,11 @@
 import { parseArgs } from 'node:util';
 import fs from 'fs';
 import compress from '@/compress';
-import { VALID_RESOLUTIONS, type ResolutionSetting } from './types';
+import {
+  VALID_RESOLUTIONS,
+  type PdfMetadata,
+  type ResolutionSetting,
+} from './types';
 
 export const helpText = `
 compress-pdf - Compress PDF files using Ghostscript
@@ -26,6 +30,12 @@ Options:
                              Remove password protection after compression
   --returnOriginalIfLarger   Keep the original PDF when compression is not smaller
   --targetSize <bytes>       Keep trying milder settings until the file fits
+  --stripMetadata            Clear title, author, subject, keywords, and creator
+  --sanitize                 Clear document info, including the extra metadata block
+  --title <text>             Set the compressed PDF title
+  --author <text>            Set the compressed PDF author
+  --subject <text>           Set the compressed PDF subject
+  --keywords <text>          Set the compressed PDF keywords
   -h, --help                 Show this help message
 
 Environment:
@@ -36,12 +46,33 @@ Examples:
   npx compress-pdf -f input.pdf -o output.pdf -r screen
   npx compress-pdf -f input.pdf -o output.pdf --imageQuality 72
   npx compress-pdf -f protected.pdf -o output.pdf --pdfPassword mypass
+  npx compress-pdf -f input.pdf -o output.pdf --stripMetadata
+  npx compress-pdf -f input.pdf -o output.pdf --title "Report" --author "Ada"
 `;
 
 function getStringValue(
   value: string | boolean | undefined
 ): string | undefined {
   return typeof value === 'string' ? value : undefined;
+}
+
+function metadataFromFlags(values: {
+  title?: string | boolean;
+  author?: string | boolean;
+  subject?: string | boolean;
+  keywords?: string | boolean;
+}): PdfMetadata | undefined {
+  const title = getStringValue(values.title);
+  const author = getStringValue(values.author);
+  const subject = getStringValue(values.subject);
+  const keywords = getStringValue(values.keywords);
+  const metadata: PdfMetadata = {};
+  if (title !== undefined) metadata.title = title;
+  if (author !== undefined) metadata.author = author;
+  if (subject !== undefined) metadata.subject = subject;
+  if (keywords !== undefined) metadata.keywords = keywords;
+  if (Object.keys(metadata).length === 0) return undefined;
+  return metadata;
 }
 
 const cliOptions = {
@@ -55,6 +86,12 @@ const cliOptions = {
   removePasswordAfterCompression: { type: 'boolean', default: false },
   returnOriginalIfLarger: { type: 'boolean', default: false },
   targetSize: { type: 'string' },
+  stripMetadata: { type: 'boolean', default: false },
+  sanitize: { type: 'boolean', default: false },
+  title: { type: 'string' },
+  author: { type: 'string' },
+  subject: { type: 'string' },
+  keywords: { type: 'string' },
   help: { type: 'boolean', short: 'h', default: false },
 } as const;
 
@@ -133,6 +170,9 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
         values.removePasswordAfterCompression as boolean,
       returnOriginalIfLarger: values.returnOriginalIfLarger as boolean,
       targetSize: targetSize ? Number(targetSize) : undefined,
+      stripMetadata: values.stripMetadata as boolean,
+      sanitize: values.sanitize as boolean,
+      setMetadata: metadataFromFlags(values),
       output,
     });
 

@@ -6,10 +6,12 @@ import childProcess from 'child_process';
 import { randomUUID } from 'crypto';
 import getBinPath from './get-bin-path';
 import analyze, { presetForKind } from './analyze';
+import { assertMetadata, buildDocinfoProgram } from './metadata';
 import {
   VALID_RESOLUTIONS,
   CompressPdfError,
   type Options,
+  type PdfMetadata,
   type Resolution,
   type CompressResult,
   type CompressFileResult,
@@ -31,7 +33,15 @@ function definedOptions(options?: Options): Partial<Options> {
 }
 
 const defaultOptions: Required<
-  Omit<Options, 'gsModule' | 'signal' | 'output' | 'targetSize' | 'resolution'>
+  Omit<
+    Options,
+    | 'gsModule'
+    | 'signal'
+    | 'output'
+    | 'targetSize'
+    | 'resolution'
+    | 'setMetadata'
+  >
 > & { resolution: Resolution } = {
   compatibilityLevel: 1.4,
   resolution: 'ebook',
@@ -40,16 +50,27 @@ const defaultOptions: Required<
   removePasswordAfterCompression: false,
   timeout: 120_000,
   returnOriginalIfLarger: false,
+  stripMetadata: false,
+  sanitize: false,
 };
 
 type ResolvedOptions = Required<
-  Omit<Options, 'gsModule' | 'signal' | 'output' | 'targetSize' | 'resolution'>
+  Omit<
+    Options,
+    | 'gsModule'
+    | 'signal'
+    | 'output'
+    | 'targetSize'
+    | 'resolution'
+    | 'setMetadata'
+  >
 > & {
   gsModule: string;
   resolution: Resolution;
   signal?: AbortSignal;
   output?: string;
   targetSize?: number;
+  setMetadata?: PdfMetadata;
 };
 
 type AttemptSettings = {
@@ -124,6 +145,8 @@ function validateOptions(opts: ResolvedOptions): void {
       );
     }
   }
+
+  assertMetadata(opts.setMetadata);
 }
 
 /**
@@ -139,6 +162,9 @@ function buildGsArgs(options: {
   imageQuality: number;
   pdfPassword: string;
   removePasswordAfterCompression: boolean;
+  stripMetadata: boolean;
+  sanitize: boolean;
+  setMetadata?: PdfMetadata;
 }): string[] {
   const args: string[] = [
     '-q',
@@ -172,7 +198,16 @@ function buildGsArgs(options: {
     );
   }
 
-  args.push(options.inputFile);
+  const docinfo = buildDocinfoProgram({
+    stripMetadata: options.stripMetadata,
+    sanitize: options.sanitize,
+    setMetadata: options.setMetadata,
+  });
+  if (docinfo) {
+    args.push('-f', options.inputFile, '-c', docinfo);
+  } else {
+    args.push(options.inputFile);
+  }
 
   return args;
 }
@@ -361,6 +396,9 @@ async function compress(
     signal,
     returnOriginalIfLarger,
     targetSize,
+    stripMetadata,
+    sanitize,
+    setMetadata,
   } = mergedOptions;
 
   // Validate that source file exists (when path is provided)
@@ -435,6 +473,9 @@ async function compress(
         imageQuality: attempt.imageQuality,
         pdfPassword,
         removePasswordAfterCompression,
+        stripMetadata,
+        sanitize,
+        setMetadata,
       });
 
       let size: number;
