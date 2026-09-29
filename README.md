@@ -88,19 +88,22 @@ const result = await compress(pdf, {
 });
 ```
 
-| Option                           | Description                                                                                                                              |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolution`                     | `screen`, `ebook`, `printer`, `prepress`, `default`, or `auto`. Default is `ebook`. `auto` picks a preset from `analyze`.                |
-| `compatibilityLevel`             | PDF compatibility level from `1.0` to `2.0`. Default is `1.4`.                                                                           |
-| `imageQuality`                   | Image resolution in DPI, from `1` to `600`. Default is `100`.                                                                            |
-| `gsModule`                       | Path to the Ghostscript binary, such as `/usr/bin/gs`.                                                                                   |
-| `pdfPassword`                    | Password for a protected PDF.                                                                                                            |
-| `removePasswordAfterCompression` | Drop password protection from the compressed file.                                                                                       |
-| `timeout`                        | How long to wait for Ghostscript, in milliseconds. Default is `120000` (2 minutes).                                                      |
-| `signal`                         | `AbortSignal` that cancels the Ghostscript process.                                                                                      |
-| `returnOriginalIfLarger`         | When `true`, keep the original PDF if Ghostscript output is not smaller. Default is `false`.                                             |
-| `output`                         | Path to write the compressed PDF. When set, Ghostscript writes there and the return value is metadata plus that absolute path.           |
-| `targetSize`                     | Max size in bytes. Tries up to 6 milder preset/DPI settings and returns the first result that fits, or the smallest attempt if none fit. |
+| Option                           | Description                                                                                                                                                                      |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolution`                     | `screen`, `ebook`, `printer`, `prepress`, `default`, or `auto`. Default is `ebook`. `auto` picks a preset from `analyze`.                                                        |
+| `compatibilityLevel`             | PDF compatibility level from `1.0` to `2.0`. Default is `1.4`.                                                                                                                   |
+| `imageQuality`                   | Image resolution in DPI, from `1` to `600`. Default is `100`.                                                                                                                    |
+| `gsModule`                       | Path to the Ghostscript binary, such as `/usr/bin/gs`.                                                                                                                           |
+| `pdfPassword`                    | Password for a protected PDF.                                                                                                                                                    |
+| `removePasswordAfterCompression` | Drop password protection from the compressed file.                                                                                                                               |
+| `timeout`                        | How long to wait for Ghostscript, in milliseconds. Default is `120000` (2 minutes).                                                                                              |
+| `signal`                         | `AbortSignal` that cancels the Ghostscript process.                                                                                                                              |
+| `returnOriginalIfLarger`         | When `true`, keep the original PDF if Ghostscript output is not smaller. Default is `false`.                                                                                     |
+| `output`                         | Path to write the compressed PDF. When set, Ghostscript writes there and the return value is metadata plus that absolute path.                                                   |
+| `targetSize`                     | Max size in bytes. Tries up to 6 milder preset/DPI settings and returns the first result that fits, or the smallest attempt if none fit.                                         |
+| `stripMetadata`                  | When `true`, clear title, author, subject, keywords, and creator. Default is `false`. Ghostscript still writes its own producer and dates.                                       |
+| `setMetadata`                    | Set `title`, `author`, `subject`, and `keywords`. With `stripMetadata` or `sanitize`, fields you omit are cleared.                                                               |
+| `sanitize`                       | When `true`, clear the same document info. Ghostscript then rebuilds the extra metadata block from those cleared values. Links, forms, and annotations stay. Default is `false`. |
 
 `analyze(file)` reads the PDF and returns pages, images, the highest image DPI, fonts, and a kind:
 
@@ -139,6 +142,12 @@ Options:
   --removePasswordAfterCompression
   --returnOriginalIfLarger      Keep the original PDF when compression is not smaller
   --targetSize <bytes>          Try milder settings until the file fits
+  --stripMetadata               Clear title, author, subject, keywords, and creator
+  --sanitize                    Clear document info, including the extra metadata block
+  --title <text>                Set the compressed PDF title
+  --author <text>               Set the compressed PDF author
+  --subject <text>              Set the compressed PDF subject
+  --keywords <text>             Set the compressed PDF keywords
   -h, --help
 ```
 

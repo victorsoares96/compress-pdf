@@ -37,6 +37,17 @@ export type AnalyzeOptions = {
   signal?: AbortSignal;
 };
 
+/**
+ * Document info written onto the compressed PDF.
+ * Omitted fields are left as they are, unless metadata is being cleared.
+ */
+export type PdfMetadata = {
+  title?: string;
+  author?: string;
+  subject?: string;
+  keywords?: string;
+};
+
 export type Options = {
   compatibilityLevel?: number;
   /**
@@ -104,6 +115,22 @@ export type Options = {
    * attempt if none fit.
    */
   targetSize?: number;
+  /**
+   * Clear title, author, subject, keywords, and creator on the compressed PDF.
+   * Default is `false`. Ghostscript still writes its own producer and dates.
+   */
+  stripMetadata?: boolean;
+  /**
+   * Replace document info on the compressed PDF.
+   * With `stripMetadata` or `sanitize`, fields you omit are cleared.
+   */
+  setMetadata?: PdfMetadata;
+  /**
+   * Clear document info, including the extra metadata block Ghostscript
+   * rebuilds from that info. Does not remove links, forms, or annotations.
+   * Default is `false`.
+   */
+  sanitize?: boolean;
 };
 
 /**

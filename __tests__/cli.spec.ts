@@ -131,6 +131,9 @@ describe('runCli', () => {
         removePasswordAfterCompression: false,
         returnOriginalIfLarger: false,
         targetSize: undefined,
+        stripMetadata: false,
+        sanitize: false,
+        setMetadata: undefined,
         output: outp,
       });
       expect(logs.some((l) => l.includes('PDF compressed successfully'))).toBe(
@@ -183,6 +186,9 @@ describe('runCli', () => {
         removePasswordAfterCompression: true,
         returnOriginalIfLarger: true,
         targetSize: 2048,
+        stripMetadata: false,
+        sanitize: false,
+        setMetadata: undefined,
         output: outp,
       });
     } finally {
@@ -288,6 +294,46 @@ describe('runCli', () => {
       expect(fs.existsSync(outp)).toBe(false);
     } finally {
       fs.unlinkSync(pdf);
+    }
+  });
+
+  it('maps metadata flags into compress options', async () => {
+    const pdf = path.join(os.tmpdir(), `compress-cli-meta-${process.pid}.pdf`);
+    const outp = path.join(
+      os.tmpdir(),
+      `compress-cli-meta-out-${process.pid}.pdf`
+    );
+    fs.writeFileSync(pdf, '%PDF');
+    compressMock.mockResolvedValue(
+      stubFileResult(outp, Buffer.from('x'), false) as never
+    );
+
+    try {
+      const code = await runCli([
+        '-f',
+        pdf,
+        '-o',
+        outp,
+        '--stripMetadata',
+        '--sanitize',
+        '--title',
+        'Report',
+        '--author',
+        'Ada',
+      ]);
+      expect(code).toBe(0);
+      expect(compressMock).toHaveBeenCalledWith(
+        pdf,
+        expect.objectContaining({
+          stripMetadata: true,
+          sanitize: true,
+          setMetadata: { title: 'Report', author: 'Ada' },
+          output: outp,
+        })
+      );
+    } finally {
+      fs.unlinkSync(pdf);
+      if (fs.existsSync(outp)) fs.unlinkSync(outp);
     }
   });
 
