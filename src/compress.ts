@@ -379,6 +379,15 @@ async function compress(
     let smallestPath: string | undefined;
     let smallestSize = Infinity;
     let attemptIndex = 0;
+    const searching = targetSize !== undefined;
+
+    const discardAttempt = async (filePath: string): Promise<void> => {
+      const index = attemptOutputs.indexOf(filePath);
+      if (index >= 0) {
+        attemptOutputs.splice(index, 1);
+      }
+      await safeUnlink(filePath);
+    };
 
     // Attempts must run one after another: later settings depend on earlier sizes.
     /* eslint-disable no-await-in-loop */
@@ -386,11 +395,16 @@ async function compress(
       const attempt = attempts[attemptIndex];
       attemptIndex += 1;
 
-      const attemptOut = path.resolve(
-        os.tmpdir(),
-        `compress-pdf-${randomUUID()}`
-      );
-      attemptOutputs.push(attemptOut);
+      // A single call with `output` goes straight to that path. A search uses
+      // temp files so a losing attempt never touches the destination.
+      const attemptOut =
+        !searching && userOutput
+          ? userOutput
+          : path.resolve(os.tmpdir(), `compress-pdf-${randomUUID()}`);
+      const isTempAttempt = attemptOut !== userOutput;
+      if (isTempAttempt) {
+        attemptOutputs.push(attemptOut);
+      }
 
       const args = buildGsArgs({
         output: attemptOut,
@@ -402,25 +416,45 @@ async function compress(
         removePasswordAfterCompression,
       });
 
-      await runGhostscript({
-        gsModule,
-        args,
-        timeout,
-        signal,
-        pdfPassword,
-      });
-
-      const { size } = await fs.promises.stat(attemptOut);
-
-      if (size < smallestSize) {
-        smallestSize = size;
-        smallestPath = attemptOut;
+      let size: number;
+      try {
+        await runGhostscript({
+          gsModule,
+          args,
+          timeout,
+          signal,
+          pdfPassword,
+        });
+        const stat = await fs.promises.stat(attemptOut);
+        size = stat.size;
+      } catch (error) {
+        if (isTempAttempt) {
+          await discardAttempt(attemptOut);
+        }
+        if (smallestPath) {
+          break;
+        }
+        throw error;
       }
 
-      if (targetSize !== undefined) {
-        if (size <= targetSize && size < bestFittingSize) {
-          bestFittingSize = size;
-          bestFittingPath = attemptOut;
+      if (size < smallestSize) {
+        if (
+          smallestPath &&
+          smallestPath !== attemptOut &&
+          smallestPath !== userOutput
+        ) {
+          await discardAttempt(smallestPath);
+        }
+        smallestSize = size;
+        smallestPath = attemptOut;
+      } else if (isTempAttempt && attemptOut !== smallestPath) {
+        await discardAttempt(attemptOut);
+      }
+
+      if (searching) {
+        if (size <= targetSize && smallestSize <= targetSize) {
+          bestFittingPath = smallestPath;
+          bestFittingSize = smallestSize;
           break;
         }
       } else {
@@ -448,7 +482,7 @@ async function compress(
     if (userOutput) {
       if (useOriginal) {
         await writeOriginalTo(file, userOutput);
-      } else {
+      } else if (chosenPath !== userOutput) {
         await fs.promises.copyFile(chosenPath, userOutput);
       }
 

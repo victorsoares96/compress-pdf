@@ -6,13 +6,16 @@ import compress from '../src/compress';
 
 function writeFakeGs(dir: string, payload: string): string {
   const bin = path.join(dir, 'fake-gs.js');
+  const record = path.join(dir, 'gs-output-path');
   fs.writeFileSync(
     bin,
     `#!/usr/bin/env node
 const fs = require('fs');
 const outArg = process.argv.slice(2).find((arg) => arg.startsWith('-sOutputFile='));
 if (outArg) {
-  fs.writeFileSync(outArg.slice('-sOutputFile='.length), ${JSON.stringify(payload)});
+  const outPath = outArg.slice('-sOutputFile='.length);
+  fs.writeFileSync(${JSON.stringify(record)}, outPath);
+  fs.writeFileSync(outPath, ${JSON.stringify(payload)});
 }
 `
   );
@@ -35,6 +38,9 @@ describe('compress output option', () => {
     });
 
     expect(fs.readFileSync(destination, 'utf8')).toBe(compressed);
+    expect(fs.readFileSync(path.join(dir, 'gs-output-path'), 'utf8')).toBe(
+      path.resolve(destination)
+    );
     expect(result.output).toBe(path.resolve(destination));
     expect(result.originalSize).toBe(input.length);
     expect(result.compressedSize).toBe(compressed.length);

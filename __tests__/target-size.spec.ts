@@ -102,4 +102,44 @@ describe('targetSize', () => {
 
     expect(result.compressedSize).toBe(2000);
   });
+
+  it('keeps the best successful attempt when a later Ghostscript call fails', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compress-pdf-ts-'));
+    const input = Buffer.from('%PDF-1.4 original document body\n');
+    const bin = path.join(dir, 'fake-gs.js');
+    const marker = path.join(dir, 'alive-previous');
+    fs.writeFileSync(
+      bin,
+      `#!/usr/bin/env node
+const fs = require('fs');
+const args = process.argv.slice(2);
+const outArg = args.find((arg) => arg.startsWith('-sOutputFile='));
+const dpiArg = args.find((arg) => arg.startsWith('-dColorImageResolution='));
+if (!outArg) process.exit(1);
+const outPath = outArg.slice('-sOutputFile='.length);
+const dpi = Number((dpiArg || '').slice('-dColorImageResolution='.length));
+const logPath = ${JSON.stringify(path.join(dir, 'attempts.log'))};
+const previous = fs.existsSync(logPath)
+  ? fs.readFileSync(logPath, 'utf8').split('\\n').filter(Boolean)
+  : [];
+fs.appendFileSync(logPath, outPath + '\\n');
+if (dpi <= 50) {
+  const alive = previous.filter((filePath) => fs.existsSync(filePath));
+  fs.writeFileSync(${JSON.stringify(marker)}, String(alive.length));
+  process.exit(1);
+}
+const size = dpi <= 72 ? 800 : 2000;
+fs.writeFileSync(outPath, 'x'.repeat(size));
+`
+    );
+    fs.chmodSync(bin, 0o755);
+
+    const result = await compress(input, {
+      gsModule: bin,
+      targetSize: 10,
+    });
+
+    expect(result.compressedSize).toBe(800);
+    expect(fs.readFileSync(marker, 'utf8')).toBe('1');
+  });
 });
