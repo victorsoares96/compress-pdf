@@ -9,12 +9,14 @@ import {
   VALID_RESOLUTIONS,
   CompressPdfError,
   type Options,
+  type Resolution,
   type CompressResult,
   type CompressFileResult,
 } from './types';
 
 const execFile = util.promisify(childProcess.execFile);
 const GS_MAX_BUFFER = 16 * 1024 * 1024;
+const TARGET_SIZE_MAX_ATTEMPTS = 6;
 
 /**
  * Strip undefined entries so `{ ...defaults, ...options }` does not overwrite
@@ -28,7 +30,7 @@ function definedOptions(options?: Options): Partial<Options> {
 }
 
 const defaultOptions: Required<
-  Omit<Options, 'gsModule' | 'signal' | 'output'>
+  Omit<Options, 'gsModule' | 'signal' | 'output' | 'targetSize'>
 > = {
   compatibilityLevel: 1.4,
   resolution: 'ebook',
@@ -40,12 +42,44 @@ const defaultOptions: Required<
 };
 
 type ResolvedOptions = Required<
-  Omit<Options, 'gsModule' | 'signal' | 'output'>
+  Omit<Options, 'gsModule' | 'signal' | 'output' | 'targetSize'>
 > & {
   gsModule: string;
   signal?: AbortSignal;
   output?: string;
+  targetSize?: number;
 };
+
+type AttemptSettings = {
+  resolution: Resolution;
+  imageQuality: number;
+};
+
+/**
+ * Build the ladder of settings to try for targetSize.
+ * Starts from the caller's settings, then steps toward smaller output.
+ */
+function buildTargetSizeAttempts(start: AttemptSettings): AttemptSettings[] {
+  const candidates: AttemptSettings[] = [
+    start,
+    { resolution: start.resolution, imageQuality: 72 },
+    { resolution: start.resolution, imageQuality: 50 },
+    { resolution: 'ebook', imageQuality: 72 },
+    { resolution: 'screen', imageQuality: 72 },
+    { resolution: 'screen', imageQuality: 50 },
+  ];
+
+  return candidates
+    .filter((candidate, index) => {
+      const key = `${candidate.resolution}:${candidate.imageQuality}`;
+      return (
+        candidates.findIndex(
+          (other) => `${other.resolution}:${other.imageQuality}` === key
+        ) === index
+      );
+    })
+    .slice(0, TARGET_SIZE_MAX_ATTEMPTS);
+}
 
 /**
  * Validate compression options before executing.
@@ -79,6 +113,14 @@ function validateOptions(opts: ResolvedOptions): void {
     throw new CompressPdfError(
       `compatibilityLevel must be between 1.0 and 2.0, got ${opts.compatibilityLevel}`
     );
+  }
+
+  if (opts.targetSize !== undefined) {
+    if (!Number.isFinite(opts.targetSize) || opts.targetSize <= 0) {
+      throw new CompressPdfError(
+        `targetSize must be a positive number of bytes, got ${opts.targetSize}`
+      );
+    }
   }
 }
 
@@ -204,6 +246,59 @@ async function writeOriginalTo(
   }
 }
 
+async function runGhostscript(options: {
+  gsModule: string;
+  args: string[];
+  timeout: number;
+  signal?: AbortSignal;
+  pdfPassword: string;
+}): Promise<void> {
+  try {
+    await execFile(options.gsModule, options.args, {
+      timeout: options.timeout,
+      maxBuffer: GS_MAX_BUFFER,
+      signal: options.signal,
+    });
+  } catch (error) {
+    if (errorCode(error) === 'ENOENT') {
+      throw new CompressPdfError(
+        `Ghostscript was not found at "${options.gsModule}". Set COMPRESS_PDF_BIN_PATH to the Ghostscript binary, or install Ghostscript manually.`,
+        redactCause(error, options.pdfPassword)
+      );
+    }
+
+    if (isAbort(error)) {
+      throw new CompressPdfError(
+        'Ghostscript compression was aborted.',
+        redactCause(error, options.pdfPassword)
+      );
+    }
+
+    if (isExecTimeout(error)) {
+      throw new CompressPdfError(
+        `Ghostscript timed out after ${options.timeout}ms.`,
+        redactCause(error, options.pdfPassword)
+      );
+    }
+
+    const stderr = redactSecret(
+      outputText(
+        error && typeof error === 'object' && 'stderr' in error
+          ? error.stderr
+          : undefined
+      ).trim(),
+      options.pdfPassword
+    );
+    const message = stderr
+      ? `Ghostscript failed to compress the PDF. ${stderr}`
+      : 'Ghostscript failed to compress the PDF.';
+    throw new CompressPdfError(
+      message,
+      redactCause(error, options.pdfPassword)
+    );
+  }
+}
+
 /**
  * Compress a PDF file using Ghostscript.
  *
@@ -244,6 +339,7 @@ async function compress(
     timeout,
     signal,
     returnOriginalIfLarger,
+    targetSize,
   } = mergedOptions;
 
   // Validate that source file exists (when path is provided)
@@ -255,10 +351,17 @@ async function compress(
     typeof userOptions.output === 'string' && userOptions.output.length > 0
       ? path.resolve(userOptions.output)
       : undefined;
-  const gsOutput =
-    userOutput ?? path.resolve(os.tmpdir(), `compress-pdf-${randomUUID()}`);
-  const ownsTempOutput = userOutput === undefined;
-  let tempFile: string | undefined;
+
+  const attempts: AttemptSettings[] =
+    targetSize !== undefined
+      ? buildTargetSizeAttempts({
+          resolution: resolution as Resolution,
+          imageQuality,
+        })
+      : [{ resolution: resolution as Resolution, imageQuality }];
+
+  let tempInput: string | undefined;
+  const attemptOutputs: string[] = [];
 
   try {
     let inputFile: string;
@@ -266,78 +369,90 @@ async function compress(
     if (typeof file === 'string') {
       inputFile = path.resolve(file);
     } else {
-      tempFile = path.resolve(os.tmpdir(), `compress-pdf-${randomUUID()}`);
-      await fs.promises.writeFile(tempFile, file);
-      inputFile = tempFile;
+      tempInput = path.resolve(os.tmpdir(), `compress-pdf-${randomUUID()}`);
+      await fs.promises.writeFile(tempInput, file);
+      inputFile = tempInput;
     }
 
-    const args = buildGsArgs({
-      output: gsOutput,
-      inputFile,
-      compatibilityLevel,
-      resolution,
-      imageQuality,
-      pdfPassword,
-      removePasswordAfterCompression,
-    });
+    let bestFittingPath: string | undefined;
+    let bestFittingSize = Infinity;
+    let smallestPath: string | undefined;
+    let smallestSize = Infinity;
+    let attemptIndex = 0;
 
-    try {
-      await execFile(gsModule, args, {
-        timeout,
-        maxBuffer: GS_MAX_BUFFER,
-        signal,
-      });
-    } catch (error) {
-      if (errorCode(error) === 'ENOENT') {
-        throw new CompressPdfError(
-          `Ghostscript was not found at "${gsModule}". Set COMPRESS_PDF_BIN_PATH to the Ghostscript binary, or install Ghostscript manually.`,
-          redactCause(error, pdfPassword)
-        );
-      }
+    // Attempts must run one after another: later settings depend on earlier sizes.
+    /* eslint-disable no-await-in-loop */
+    while (attemptIndex < attempts.length) {
+      const attempt = attempts[attemptIndex];
+      attemptIndex += 1;
 
-      if (isAbort(error)) {
-        throw new CompressPdfError(
-          'Ghostscript compression was aborted.',
-          redactCause(error, pdfPassword)
-        );
-      }
-
-      if (isExecTimeout(error)) {
-        throw new CompressPdfError(
-          `Ghostscript timed out after ${timeout}ms.`,
-          redactCause(error, pdfPassword)
-        );
-      }
-
-      const stderr = redactSecret(
-        outputText(
-          error && typeof error === 'object' && 'stderr' in error
-            ? error.stderr
-            : undefined
-        ).trim(),
-        pdfPassword
+      const attemptOut = path.resolve(
+        os.tmpdir(),
+        `compress-pdf-${randomUUID()}`
       );
-      const message = stderr
-        ? `Ghostscript failed to compress the PDF. ${stderr}`
-        : 'Ghostscript failed to compress the PDF.';
-      throw new CompressPdfError(message, redactCause(error, pdfPassword));
+      attemptOutputs.push(attemptOut);
+
+      const args = buildGsArgs({
+        output: attemptOut,
+        inputFile,
+        compatibilityLevel,
+        resolution: attempt.resolution,
+        imageQuality: attempt.imageQuality,
+        pdfPassword,
+        removePasswordAfterCompression,
+      });
+
+      await runGhostscript({
+        gsModule,
+        args,
+        timeout,
+        signal,
+        pdfPassword,
+      });
+
+      const { size } = await fs.promises.stat(attemptOut);
+
+      if (size < smallestSize) {
+        smallestSize = size;
+        smallestPath = attemptOut;
+      }
+
+      if (targetSize !== undefined) {
+        if (size <= targetSize && size < bestFittingSize) {
+          bestFittingSize = size;
+          bestFittingPath = attemptOut;
+          break;
+        }
+      } else {
+        bestFittingPath = attemptOut;
+        bestFittingSize = size;
+        break;
+      }
+    }
+    /* eslint-enable no-await-in-loop */
+
+    const chosenPath = bestFittingPath ?? smallestPath;
+    const chosenSize = bestFittingPath ? bestFittingSize : smallestSize;
+
+    if (!chosenPath) {
+      throw new CompressPdfError('Ghostscript failed to compress the PDF.');
     }
 
     const originalSize =
       typeof file === 'string'
         ? (await fs.promises.stat(file)).size
         : file.length;
-    const ghostscriptSize = (await fs.promises.stat(gsOutput)).size;
     const duration = Date.now() - startTime;
-    const useOriginal =
-      returnOriginalIfLarger && ghostscriptSize >= originalSize;
+    const useOriginal = returnOriginalIfLarger && chosenSize >= originalSize;
 
     if (userOutput) {
       if (useOriginal) {
         await writeOriginalTo(file, userOutput);
+      } else {
+        await fs.promises.copyFile(chosenPath, userOutput);
       }
 
-      const compressedSize = useOriginal ? originalSize : ghostscriptSize;
+      const compressedSize = useOriginal ? originalSize : chosenSize;
       const compressionRatio =
         originalSize > 0 ? compressedSize / originalSize : 0;
 
@@ -357,7 +472,7 @@ async function compress(
           ? await fs.promises.readFile(file)
           : Buffer.from(file);
     } else {
-      resultBuffer = await fs.promises.readFile(gsOutput);
+      resultBuffer = await fs.promises.readFile(chosenPath);
     }
 
     const compressedSize = useOriginal ? originalSize : resultBuffer.length;
@@ -377,9 +492,8 @@ async function compress(
 
     return resultBuffer as Buffer & CompressResult;
   } finally {
-    // Always clean up temporary files, even on error
-    if (tempFile) await safeUnlink(tempFile);
-    if (ownsTempOutput) await safeUnlink(gsOutput);
+    if (tempInput) await safeUnlink(tempInput);
+    await Promise.all(attemptOutputs.map((filePath) => safeUnlink(filePath)));
   }
 }
 

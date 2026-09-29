@@ -100,6 +100,7 @@ const result = await compress(pdf, {
 | `signal` | `AbortSignal` that cancels the Ghostscript process. |
 | `returnOriginalIfLarger` | When `true`, keep the original PDF if Ghostscript output is not smaller. Default is `false`. |
 | `output` | Path to write the compressed PDF. When set, Ghostscript writes there and the return value is metadata plus that absolute path. |
+| `targetSize` | Max size in bytes. Tries up to 6 milder preset/DPI settings and returns the first result that fits, or the smallest attempt if none fit. |
 
 Failures throw `CompressPdfError`. If the binary cannot be found, the message tells you to set `COMPRESS_PDF_BIN_PATH` or install Ghostscript manually. `NaN` is rejected for `imageQuality` and `compatibilityLevel`.
 
@@ -120,6 +121,7 @@ Options:
   --pdfPassword <pass>          Password for a protected PDF. Prefer COMPRESS_PDF_PASSWORD
   --removePasswordAfterCompression
   --returnOriginalIfLarger      Keep the original PDF when compression is not smaller
+  --targetSize <bytes>          Try milder settings until the file fits
   -h, --help
 ```
 

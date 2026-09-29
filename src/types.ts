@@ -66,6 +66,12 @@ export type Options = {
    * into memory.
    */
   output?: string;
+  /**
+   * Maximum compressed size in bytes. When set, tries up to 6 preset/DPI
+   * combinations and returns the first result that fits, or the smallest
+   * attempt if none fit.
+   */
+  targetSize?: number;
 };
 
 /**
