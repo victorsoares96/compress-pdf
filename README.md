@@ -96,6 +96,7 @@ const result = await compress(pdf, {
 | `removePasswordAfterCompression` | Drop password protection from the compressed file. |
 | `timeout` | How long to wait for Ghostscript, in milliseconds. Default is `120000` (2 minutes). |
 | `signal` | `AbortSignal` that cancels the Ghostscript process. |
+| `returnOriginalIfLarger` | When `true`, keep the original PDF if Ghostscript output is not smaller. Default is `false`. |
 
 Failures throw `CompressPdfError`. If the binary cannot be found, the message tells you to set `COMPRESS_PDF_BIN_PATH` or install Ghostscript manually. `NaN` is rejected for `imageQuality` and `compatibilityLevel`.
 
@@ -115,6 +116,7 @@ Options:
   --gsModule <path>             Ghostscript binary, for example /usr/bin/gs
   --pdfPassword <pass>          Password for a protected PDF. Prefer COMPRESS_PDF_PASSWORD
   --removePasswordAfterCompression
+  --returnOriginalIfLarger      Keep the original PDF when compression is not smaller
   -h, --help
 ```
 
