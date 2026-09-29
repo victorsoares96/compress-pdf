@@ -55,6 +55,11 @@ export type Options = {
    * Cancels the Ghostscript process when aborted.
    */
   signal?: AbortSignal;
+  /**
+   * When true, return the original PDF if Ghostscript output is larger
+   * than or equal to the input. Default is `false`.
+   */
+  returnOriginalIfLarger?: boolean;
 };
 
 /**

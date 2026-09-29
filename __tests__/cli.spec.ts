@@ -124,6 +124,7 @@ describe('runCli', () => {
         gsModule: undefined,
         pdfPassword: undefined,
         removePasswordAfterCompression: false,
+        returnOriginalIfLarger: false,
       });
       expect(logs.some((l) => l.includes('PDF compressed successfully'))).toBe(
         true
@@ -158,6 +159,7 @@ describe('runCli', () => {
         '--pdfPassword',
         'secret',
         '--removePasswordAfterCompression',
+        '--returnOriginalIfLarger',
       ]);
       expect(code).toBe(0);
       expect(compressMock).toHaveBeenCalledWith(pdf, {
@@ -167,6 +169,7 @@ describe('runCli', () => {
         gsModule: '/custom/gs',
         pdfPassword: 'secret',
         removePasswordAfterCompression: true,
+        returnOriginalIfLarger: true,
       });
     } finally {
       fs.unlinkSync(pdf);

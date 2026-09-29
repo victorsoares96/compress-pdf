@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### ✨ New Features
+
+- `returnOriginalIfLarger` keeps the original PDF when Ghostscript output is larger than or equal to the input. Default is `false`. The CLI flag is `--returnOriginalIfLarger`.
+
 ### 🐛 Bug Fixes
 
 - Archive extraction no longer builds a shell command. `tar` receives the archive and destination as arguments. The Python fallback receives those paths as arguments and refuses members that would be written outside the destination.

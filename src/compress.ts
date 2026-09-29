@@ -33,6 +33,7 @@ const defaultOptions: Required<Omit<Options, 'gsModule' | 'signal'>> = {
   pdfPassword: '',
   removePasswordAfterCompression: false,
   timeout: 120_000,
+  returnOriginalIfLarger: false,
 };
 
 type ResolvedOptions = Required<Omit<Options, 'gsModule' | 'signal'>> & {
@@ -215,6 +216,7 @@ async function compress(file: string | Buffer, options?: Options) {
     removePasswordAfterCompression,
     timeout,
     signal,
+    returnOriginalIfLarger,
   } = mergedOptions;
 
   // Validate that source file exists (when path is provided)
@@ -288,7 +290,7 @@ async function compress(file: string | Buffer, options?: Options) {
       throw new CompressPdfError(message, redactCause(error, pdfPassword));
     }
 
-    const compressedBuffer = await fs.promises.readFile(output);
+    const ghostscriptBuffer = await fs.promises.readFile(output);
 
     const originalSize =
       typeof file === 'string'
@@ -296,7 +298,20 @@ async function compress(file: string | Buffer, options?: Options) {
         : file.length;
 
     const duration = Date.now() - startTime;
-    const compressedSize = compressedBuffer.length;
+    const useOriginal =
+      returnOriginalIfLarger && ghostscriptBuffer.length >= originalSize;
+
+    let resultBuffer: Buffer;
+    if (useOriginal) {
+      resultBuffer =
+        typeof file === 'string'
+          ? await fs.promises.readFile(file)
+          : Buffer.from(file);
+    } else {
+      resultBuffer = ghostscriptBuffer;
+    }
+
+    const compressedSize = useOriginal ? originalSize : resultBuffer.length;
     const compressionRatio =
       originalSize > 0 ? compressedSize / originalSize : 0;
 
@@ -304,14 +319,14 @@ async function compress(file: string | Buffer, options?: Options) {
     // The return value is still a Buffer (works with writeFile, etc.),
     // but you can access .originalSize, .compressedSize, .compressionRatio, .duration.
     // Leave Buffer#buffer as the native ArrayBuffer.
-    Object.defineProperties(compressedBuffer, {
+    Object.defineProperties(resultBuffer, {
       originalSize: { value: originalSize, enumerable: false },
       compressedSize: { value: compressedSize, enumerable: false },
       compressionRatio: { value: compressionRatio, enumerable: false },
       duration: { value: duration, enumerable: false },
     });
 
-    return compressedBuffer as Buffer & CompressResult;
+    return resultBuffer as Buffer & CompressResult;
   } finally {
     // Always clean up temporary files, even on error
     if (tempFile) await safeUnlink(tempFile);

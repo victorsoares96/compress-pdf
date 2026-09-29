@@ -24,6 +24,7 @@ Options:
                              Stored in shell history; prefer COMPRESS_PDF_PASSWORD
   --removePasswordAfterCompression
                              Remove password protection after compression
+  --returnOriginalIfLarger   Keep the original PDF when compression is not smaller
   -h, --help                 Show this help message
 
 Environment:
@@ -51,6 +52,7 @@ const cliOptions = {
   gsModule: { type: 'string' },
   pdfPassword: { type: 'string' },
   removePasswordAfterCompression: { type: 'boolean', default: false },
+  returnOriginalIfLarger: { type: 'boolean', default: false },
   help: { type: 'boolean', short: 'h', default: false },
 } as const;
 
@@ -125,6 +127,7 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
       pdfPassword,
       removePasswordAfterCompression:
         values.removePasswordAfterCompression as boolean,
+      returnOriginalIfLarger: values.returnOriginalIfLarger as boolean,
     });
 
     fs.writeFileSync(output, result);
