@@ -3,7 +3,7 @@ import { Readable } from 'node:stream';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import analyze from '../src/analyze';
 import compress, { compressStream } from '../src/compress';
 import split from '../src/split';
@@ -91,6 +91,42 @@ describe('more PDF inputs', () => {
     expect(seen).toContain('%PDF-web');
   });
 
+  it('deletes a slow input when another input fails first', async () => {
+    const dir = tempDir();
+    const bin = writeFakeGs(dir, 1);
+    const marker = `PDFLEAK-${process.pid}-${Date.now()}`;
+    let started = false;
+    const slow = new Readable({
+      read() {
+        if (started) return;
+        started = true;
+        setTimeout(() => {
+          this.push(Buffer.from(`%PDF-1.4 ${marker}\n`));
+          this.push(null);
+        }, 50);
+      },
+    });
+
+    await expect(
+      compress([slow, Readable.from([])], { gsModule: bin })
+    ).rejects.toThrow(/empty/);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 150);
+    });
+
+    const leaked = fs.readdirSync(os.tmpdir()).filter((name) => {
+      if (!name.startsWith('compress-pdf-')) return false;
+      const full = path.join(os.tmpdir(), name);
+      try {
+        return fs.readFileSync(full).includes(marker);
+      } catch {
+        return false;
+      }
+    });
+    expect(leaked).toEqual([]);
+    expect(recordedCalls(dir)).toHaveLength(0);
+  });
+
   it('rejects an empty byte view and an empty stream before Ghostscript', async () => {
     const dir = tempDir();
     const bin = writeFakeGs(dir, 1);
@@ -161,6 +197,39 @@ describe('compressStream', () => {
     expect(pdf.compressedSize).toBe(body.length);
     await closed;
     expect(fs.existsSync(stored)).toBe(false);
+  });
+
+  it('deletes the temp file when the first delete fails and the stream closes', async () => {
+    const dir = tempDir();
+    const bin = writeFakeGs(dir, 1);
+    const input = Buffer.from('%PDF-1.4 source-bytes-long-enough\n');
+    const pdf = await compressStream(input, { gsModule: bin });
+    const stored = String((pdf as unknown as fs.ReadStream).path);
+    let failedOnce = false;
+    const unlink = fs.promises.unlink.bind(fs.promises);
+    const spy = vi
+      .spyOn(fs.promises, 'unlink')
+      .mockImplementation(async (filePath) => {
+        if (String(filePath) === stored && !failedOnce) {
+          failedOnce = true;
+          const busy = new Error('busy') as NodeJS.ErrnoException;
+          busy.code = 'EBUSY';
+          throw busy;
+        }
+        return unlink(filePath);
+      });
+
+    try {
+      pdf.on('error', () => undefined);
+      pdf.destroy(new Error('read failed'));
+      await new Promise((resolve) => {
+        setTimeout(resolve, 50);
+      });
+      expect(failedOnce).toBe(true);
+      expect(fs.existsSync(stored)).toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('rejects output before Ghostscript runs', async () => {

@@ -479,13 +479,25 @@ async function compress(
       await fs.promises.writeFile(pdfaDefinition, buildPdfaDefinition(iccPath));
     }
 
-    const prepared = await Promise.all(
-      inputs.map(async (input) => {
-        const held = await holdPdf(input);
-        if (held.temp) tempInputs.push(held.filePath);
-        return held;
-      })
+    // A fast failure must not return before a slower write records its file.
+    const settled = await Promise.allSettled(
+      inputs.map((input) => holdPdf(input))
     );
+    const prepared: Awaited<ReturnType<typeof holdPdf>>[] = [];
+    let failure: unknown;
+    settled.forEach((result) => {
+      if (result.status === 'fulfilled') {
+        if (result.value.temp) tempInputs.push(result.value.filePath);
+        prepared.push(result.value);
+      } else if (failure === undefined) {
+        failure = result.reason;
+      }
+    });
+    if (failure !== undefined) {
+      throw failure instanceof Error
+        ? failure
+        : new CompressPdfError('Ghostscript failed to compress the PDF.');
+    }
     if (requestedResolution === 'auto') {
       const info = await analyze(prepared[0].filePath, {
         gsModule,
@@ -738,11 +750,26 @@ export async function compressStream(
     let removed = false;
     const remove = (): void => {
       if (removed) return;
-      removed = true;
-      safeUnlink(tempOut).catch(() => undefined);
+      // Delete only after the read handle is released. If that delete
+      // fails, try once more without treating the file as already gone.
+      fs.promises.unlink(tempOut).then(
+        () => {
+          removed = true;
+        },
+        () => {
+          setImmediate(() => {
+            if (removed) return;
+            fs.promises.unlink(tempOut).then(
+              () => {
+                removed = true;
+              },
+              () => undefined
+            );
+          });
+        }
+      );
     };
     stream.on('close', remove);
-    stream.on('error', remove);
     Object.defineProperties(stream, {
       originalSize: { value: result.originalSize, enumerable: false },
       compressedSize: { value: result.compressedSize, enumerable: false },
