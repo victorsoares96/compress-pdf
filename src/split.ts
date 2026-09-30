@@ -15,6 +15,24 @@ function outputPattern(value: string): string {
   return value;
 }
 
+function assertDistinctPages(numbers: readonly number[]): void {
+  const seen = new Set<number>();
+  numbers.forEach((page) => {
+    if (seen.has(page)) {
+      throw new CompressPdfError(
+        `split cannot write the same page twice, got ${page}`
+      );
+    }
+    seen.add(page);
+  });
+}
+
+async function removeFiles(paths: readonly string[]): Promise<void> {
+  await Promise.all(
+    paths.map((filePath) => fs.promises.unlink(filePath).catch(() => undefined))
+  );
+}
+
 function withoutSplitFields(options: Options): Options {
   const next: Options = { ...options };
   delete next.output;
@@ -56,6 +74,7 @@ async function split(
   if (numbers.length === 0) {
     throw new CompressPdfError('the PDF has no pages');
   }
+  assertDistinctPages(numbers);
 
   const shared = withoutSplitFields(options);
   const files: string[] = [];
@@ -63,17 +82,27 @@ async function split(
 
   // Each page is its own Ghostscript run, in the requested order.
   /* eslint-disable no-await-in-loop */
-  while (index < numbers.length) {
-    const page = numbers[index];
-    index += 1;
-    const destination = path.resolve(pattern.replace('%d', String(page)));
-    await fs.promises.mkdir(path.dirname(destination), { recursive: true });
-    await compress(file, {
-      ...shared,
-      pages: String(page),
-      output: destination,
-    });
-    files.push(destination);
+  try {
+    while (index < numbers.length) {
+      const page = numbers[index];
+      index += 1;
+      const destination = path.resolve(pattern.replace('%d', String(page)));
+      await fs.promises.mkdir(path.dirname(destination), { recursive: true });
+      try {
+        await compress(file, {
+          ...shared,
+          pages: String(page),
+          output: destination,
+        });
+      } catch (error) {
+        await removeFiles([destination]);
+        throw error;
+      }
+      files.push(destination);
+    }
+  } catch (error) {
+    await removeFiles(files);
+    throw error;
   }
   /* eslint-enable no-await-in-loop */
 

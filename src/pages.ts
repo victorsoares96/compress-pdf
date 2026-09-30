@@ -58,8 +58,18 @@ export function expandPages(list: string): number[] {
   return pages;
 }
 
+function farthestPage(part: string): number {
+  const bounds = part.split('-');
+  const start = Number(bounds[0]);
+  const end = bounds.length === 1 ? start : Number(bounds[1]);
+  return start > end ? start : end;
+}
+
 export function assertPagesWithin(list: string, count: number): void {
-  const tooFar = expandPages(list).find((page) => page > count);
+  const tooFar = list
+    .split(',')
+    .map(farthestPage)
+    .find((page) => page > count);
   if (tooFar !== undefined) {
     const noun = count === 1 ? 'page' : 'pages';
     throw new CompressPdfError(

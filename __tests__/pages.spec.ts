@@ -16,9 +16,16 @@ function writePdf(dir: string, name: string): string {
   return pdf;
 }
 
-function writeFakeGs(dir: string, pageCount: number): string {
+function writeFakeGs(
+  dir: string,
+  pageCount: number,
+  failOnPageList?: string
+): string {
   const bin = path.join(dir, 'fake-gs.js');
   const log = path.join(dir, 'args.txt');
+  const failCheck = failOnPageList
+    ? `if (args.includes('-sPageList=${failOnPageList}')) { console.error('fail page'); process.exit(1); }`
+    : '';
   fs.writeFileSync(
     bin,
     `#!/usr/bin/env node
@@ -39,6 +46,7 @@ if (args.includes('-dPDFINFO')) {
 const outArg = args.find((arg) => arg.startsWith('-sOutputFile='));
 if (outArg) {
   fs.writeFileSync(outArg.slice('-sOutputFile='.length), '%PDF-1.4 fake\\n');
+  ${failCheck}
 }
 `
   );
@@ -93,7 +101,8 @@ describe('pages', () => {
 
     await compress(pdf, { gsModule: bin, pages: '5-1' });
 
-    const lists = recordedCalls(dir)
+    const calls = recordedCalls(dir);
+    const lists = calls
       .map((args) => args.find((arg) => arg.startsWith('-sPageList=')))
       .filter((arg): arg is string => arg !== undefined);
     expect(lists).toEqual([
@@ -103,6 +112,20 @@ describe('pages', () => {
       '-sPageList=2',
       '-sPageList=1',
     ]);
+    const extracts = calls.filter((args) =>
+      args.some((arg) => arg.startsWith('-sPageList='))
+    );
+    extracts.forEach((args) => {
+      expect(args.some((arg) => arg.startsWith('-dPDFSETTINGS='))).toBe(false);
+      expect(args).toContain('-dPassThroughJPEGImages=true');
+      expect(args).toContain('-dDownsampleColorImages=false');
+      expect(args).toContain('-dEncodeColorImages=false');
+    });
+    const finals = calls.filter((args) =>
+      args.some((arg) => arg.startsWith('-dPDFSETTINGS='))
+    );
+    expect(finals).toHaveLength(1);
+    expect(finals[0].some((arg) => arg.startsWith('-sPageList='))).toBe(false);
   });
 
   it.each(['', '0', '1.5', 'even', '1-'])(
@@ -116,6 +139,25 @@ describe('pages', () => {
         /pages must be a list like 1-3,5/
       );
       expect(recordedCalls(dir)).toHaveLength(0);
+    }
+  );
+
+  it.each(['1-500000000', '500000000-1'])(
+    'rejects a huge range %j from its ends before writing a PDF',
+    async (pages) => {
+      const dir = tempDir();
+      const pdf = writePdf(dir, 'in.pdf');
+      const bin = writeFakeGs(dir, 2);
+      const started = Date.now();
+
+      await expect(compress(pdf, { gsModule: bin, pages })).rejects.toThrow(
+        /past the end/
+      );
+      expect(Date.now() - started).toBeLessThan(2000);
+      const writes = recordedCalls(dir).filter((args) =>
+        args.some((arg) => arg.startsWith('-sOutputFile='))
+      );
+      expect(writes).toHaveLength(0);
     }
   );
 
@@ -261,6 +303,40 @@ describe('split', () => {
       })
     ).rejects.toThrow(/returnOriginalIfLarger/);
     expect(recordedCalls(dir)).toHaveLength(0);
+  });
+
+  it('rejects a repeated page before writing', async () => {
+    const dir = tempDir();
+    const pdf = writePdf(dir, 'in.pdf');
+    const bin = writeFakeGs(dir, 2);
+
+    await expect(
+      split(pdf, {
+        gsModule: bin,
+        pages: '1,1',
+        output: path.join(dir, 'page-%d.pdf'),
+      })
+    ).rejects.toThrow(/same page twice/);
+    const writes = recordedCalls(dir).filter((args) =>
+      args.some((arg) => arg.startsWith('-sOutputFile='))
+    );
+    expect(writes).toHaveLength(0);
+    expect(fs.existsSync(path.join(dir, 'page-1.pdf'))).toBe(false);
+  });
+
+  it('removes files already written when a later page fails', async () => {
+    const dir = tempDir();
+    const pdf = writePdf(dir, 'in.pdf');
+    const bin = writeFakeGs(dir, 2, '2');
+
+    await expect(
+      split(pdf, {
+        gsModule: bin,
+        output: path.join(dir, 'page-%d.pdf'),
+      })
+    ).rejects.toThrow();
+    expect(fs.existsSync(path.join(dir, 'page-1.pdf'))).toBe(false);
+    expect(fs.existsSync(path.join(dir, 'page-2.pdf'))).toBe(false);
   });
 });
 

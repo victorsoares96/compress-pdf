@@ -126,7 +126,7 @@ const compressed = await compress('./scan.pdf', { resolution: 'auto' });
 
 `pages` keeps part of one PDF in the same compression pass. `compress` also accepts a list of PDFs and joins them in that order. `pages`, `resolution: 'auto'`, and `returnOriginalIfLarger` need a single PDF. One password is used for every file.
 
-`split` writes one compressed file per page. The output path must contain `%d`, which is replaced with the source page number:
+`split` writes one compressed file per page. The output path must contain `%d`, which is replaced with the source page number. A repeated page is rejected. If a later page fails, files from this split are removed:
 
 ```tsx
 import { split } from 'compress-pdf';

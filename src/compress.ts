@@ -371,6 +371,18 @@ function isStrictlyIncreasing(pages: readonly number[]): boolean {
   return pages.every((page, index) => index === 0 || page > pages[index - 1]);
 }
 
+/** Copy a page as-is. The caller's compression runs once, on the joined file. */
+const COPY_PAGE_ARGS = [
+  '-dPassThroughJPEGImages=true',
+  '-dPassThroughJPXImages=true',
+  '-dDownsampleColorImages=false',
+  '-dDownsampleGrayImages=false',
+  '-dDownsampleMonoImages=false',
+  '-dEncodeColorImages=false',
+  '-dEncodeGrayImages=false',
+  '-dEncodeMonoImages=false',
+];
+
 function sourcesOf(file: PdfSource | readonly PdfSource[]): PdfSource[] {
   if (typeof file === 'string' || Buffer.isBuffer(file)) {
     return [file];
@@ -550,7 +562,8 @@ async function compress(
         const extracted: string[] = [];
         let pageIndex = 0;
         // Ghostscript only accepts a page list in increasing order.
-        // Pull each page out, then compress those files in the written order.
+        // Copy each page without recompressing images, then compress
+        // those files once, in the written order.
         /* eslint-disable no-await-in-loop */
         while (pageIndex < numbers.length) {
           const page = numbers[pageIndex];
@@ -566,6 +579,7 @@ async function compress(
             '-dBATCH',
             '-dSAFER',
             '-sDEVICE=pdfwrite',
+            ...COPY_PAGE_ARGS,
             `-sPageList=${page}`,
             `-sOutputFile=${filePath}`,
           ];

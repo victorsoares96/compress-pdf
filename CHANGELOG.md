@@ -14,6 +14,7 @@
 
 ### 🐛 Bug Fixes
 
+- A page list such as `1-500000000` is rejected from the range ends, without building every page number. A backwards list is copied without recompressing images, then compressed once. `split` rejects a repeated page and removes files already written if a later page fails.
 - Archive extraction no longer builds a shell command. `tar` receives the archive and destination as arguments. The Python fallback receives those paths as arguments and refuses members that would be written outside the destination.
 - Ghostscript calls now use a 120 second timeout, a 16 MB stderr buffer, and an optional `signal`. A missing binary explains `COMPRESS_PDF_BIN_PATH` and manual installation. Input paths are resolved to absolute paths before Ghostscript sees them.
 - `imageQuality` and `compatibilityLevel` now reject `NaN` and other non-finite numbers before Ghostscript runs.
