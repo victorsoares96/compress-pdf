@@ -1,7 +1,8 @@
 /* eslint-disable no-console */
 import { parseArgs } from 'node:util';
+import { pipeline } from 'node:stream/promises';
 import fs from 'fs';
-import compress from '@/compress';
+import compress, { compressStream } from '@/compress';
 import split from '@/split';
 import {
   VALID_RESOLUTIONS,
@@ -19,8 +20,8 @@ Usage:
   npx compress-pdf --file <input> --output <output> [options]
 
 Required:
-  -f, --file <path>          Path to a PDF. Repeat to join files in order
-  -o, --output <path>        Where to write. Use %d for one file per page
+  -f, --file <path>          Path to a PDF. Repeat to join files. Use - for stdin
+  -o, --output <path>        Where to write. Use %d for one file per page, or - for stdout
 
 Options:
   -r, --resolution <preset>  screen | ebook | printer | prepress | default | auto
@@ -57,6 +58,8 @@ Examples:
   npx compress-pdf -f input.pdf -o output.pdf --pdfa 1b
   npx compress-pdf -f a.pdf -f b.pdf -o merged.pdf
   npx compress-pdf -f input.pdf -o page-%d.pdf --pages 1-3
+  npx compress-pdf -f - -o compressed.pdf < input.pdf
+  npx compress-pdf -f input.pdf -o - > compressed.pdf
 `;
 
 function getStringValue(
@@ -158,7 +161,15 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
     return 1;
   }
 
-  const missing = files.find((filePath) => !fs.existsSync(filePath));
+  const stdinCount = files.filter((filePath) => filePath === '-').length;
+  if (stdinCount > 1) {
+    console.error(`Error: stdin can only be read once\n\n${helpText}`);
+    return 1;
+  }
+
+  const missing = files.find(
+    (filePath) => filePath !== '-' && !fs.existsSync(filePath)
+  );
   if (missing) {
     console.error(`Error: File not found: ${missing}`);
     return 1;
@@ -181,6 +192,7 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
     );
     return 1;
   }
+  const toStdout = output === '-';
   const splitting = placeholders === 1;
   if (files.length > 1 && pagesText !== undefined) {
     console.error(
@@ -236,12 +248,19 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
     sanitize: values.sanitize as boolean,
     setMetadata: metadataFromFlags(values),
     ...(pagesText !== undefined ? { pages: pagesText } : {}),
-    output,
+    ...(toStdout ? {} : { output }),
   };
+
+  const asInput = (filePath: string): string | typeof process.stdin =>
+    filePath === '-' ? process.stdin : filePath;
+  const source = files.length === 1 ? asInput(files[0]) : files.map(asInput);
 
   try {
     if (splitting) {
-      const result = await split(files[0], shared);
+      const result = await split(files[0] === '-' ? process.stdin : files[0], {
+        ...shared,
+        output,
+      });
       console.log('✅ PDF split successfully!');
       console.log(`   ${result.files.length} files`);
       console.log(`   Time: ${result.duration}ms`);
@@ -251,8 +270,22 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
       return 0;
     }
 
-    const source = files.length === 1 ? files[0] : files;
-    const result = await compress(source, shared);
+    if (toStdout) {
+      const pdf = await compressStream(source, shared);
+      await pipeline(pdf, process.stdout, { end: false });
+      const ratio = ((1 - pdf.compressionRatio) * 100).toFixed(1);
+      const originalKB = (pdf.originalSize / 1024).toFixed(1);
+      const compressedKB = (pdf.compressedSize / 1024).toFixed(1);
+      console.error(`✅ PDF compressed successfully!`);
+      console.error(
+        `   ${originalKB} KB → ${compressedKB} KB (${ratio}% smaller)`
+      );
+      console.error(`   Time: ${pdf.duration}ms`);
+      console.error(`   Output: stdout`);
+      return 0;
+    }
+
+    const result = await compress(source, { ...shared, output });
 
     const ratio = ((1 - result.compressionRatio) * 100).toFixed(1);
     const originalKB = (result.originalSize / 1024).toFixed(1);

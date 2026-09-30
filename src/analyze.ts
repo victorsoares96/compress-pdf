@@ -1,16 +1,16 @@
-import path from 'path';
 import util from 'util';
 import fs from 'fs';
 import os from 'os';
 import childProcess from 'child_process';
-import { randomUUID } from 'crypto';
 import getBinPath from './get-bin-path';
+import { holdPdf } from './pdf-source';
 import { inspectPdfImages } from './pdf-images';
 import {
   CompressPdfError,
   type AnalyzeOptions,
   type PdfAnalysis,
   type PdfKind,
+  type PdfSource,
   type Resolution,
 } from './types';
 
@@ -198,31 +198,18 @@ async function runPdfInfo(options: {
  * fonts, and a kind (`scanned`, `vector`, or `mixed`).
  */
 async function analyze(
-  file: string | Buffer,
+  file: PdfSource,
   options?: AnalyzeOptions
 ): Promise<PdfAnalysis> {
   const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
   const pdfPassword = options?.pdfPassword ?? '';
   const gsModule = options?.gsModule ?? getBinPath(os.platform());
+  const held = await holdPdf(file);
 
-  if (typeof file === 'string' && !fs.existsSync(file)) {
-    throw new CompressPdfError(`File not found: ${file}`);
-  }
-
-  let tempInput: string | undefined;
   try {
-    const inputFile =
-      typeof file === 'string'
-        ? path.resolve(file)
-        : path.resolve(os.tmpdir(), `compress-pdf-${randomUUID()}`);
-    if (typeof file !== 'string') {
-      tempInput = inputFile;
-      await fs.promises.writeFile(tempInput, file);
-    }
-
     const report = await runPdfInfo({
       gsModule,
-      inputFile,
+      inputFile: held.filePath,
       pdfPassword,
       timeout,
       signal: options?.signal,
@@ -235,8 +222,7 @@ async function analyze(
       throw new CompressPdfError('Ghostscript failed to inspect the PDF.');
     }
 
-    const bytes =
-      typeof file === 'string' ? await fs.promises.readFile(inputFile) : file;
+    const bytes = held.bytes ?? (await fs.promises.readFile(held.filePath));
     const images = inspectPdfImages(bytes);
     return buildAnalysis({
       pages: info.pages,
@@ -245,8 +231,8 @@ async function analyze(
       maxImageDpi: images.maxImageDpi,
     });
   } finally {
-    if (tempInput) {
-      await fs.promises.unlink(tempInput).catch(() => undefined);
+    if (held.temp) {
+      await fs.promises.unlink(held.filePath).catch(() => undefined);
     }
   }
 }
@@ -256,31 +242,18 @@ async function analyze(
  * without counting images.
  */
 export async function pdfPageCount(
-  file: string | Buffer,
+  file: PdfSource,
   options?: AnalyzeOptions
 ): Promise<number> {
   const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
   const pdfPassword = options?.pdfPassword ?? '';
   const gsModule = options?.gsModule ?? getBinPath(os.platform());
+  const held = await holdPdf(file);
 
-  if (typeof file === 'string' && !fs.existsSync(file)) {
-    throw new CompressPdfError(`File not found: ${file}`);
-  }
-
-  let tempInput: string | undefined;
   try {
-    const inputFile =
-      typeof file === 'string'
-        ? path.resolve(file)
-        : path.resolve(os.tmpdir(), `compress-pdf-${randomUUID()}`);
-    if (typeof file !== 'string') {
-      tempInput = inputFile;
-      await fs.promises.writeFile(tempInput, file);
-    }
-
     const report = await runPdfInfo({
       gsModule,
-      inputFile,
+      inputFile: held.filePath,
       pdfPassword,
       timeout,
       signal: options?.signal,
@@ -293,8 +266,8 @@ export async function pdfPageCount(
     }
     return info.pages;
   } finally {
-    if (tempInput) {
-      await fs.promises.unlink(tempInput).catch(() => undefined);
+    if (held.temp) {
+      await fs.promises.unlink(held.filePath).catch(() => undefined);
     }
   }
 }

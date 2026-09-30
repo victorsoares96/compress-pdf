@@ -126,6 +126,10 @@ const compressed = await compress('./scan.pdf', { resolution: 'auto' });
 
 `pages` keeps part of one PDF in the same compression pass. `compress` also accepts a list of PDFs and joins them in that order. `pages`, `resolution: 'auto'`, and `returnOriginalIfLarger` need a single PDF. One password is used for every file.
 
+`compress` also accepts a `Uint8Array`, an `ArrayBuffer`, a Node.js stream, or a web stream. Those are read to the end and stored in a temporary file before Ghostscript runs. An empty byte view or an empty stream is rejected. `split` and `analyze` accept the same inputs. `split` reads a stream once and reuses that file for every page.
+
+`compressStream` returns a Node.js stream of the finished PDF, with the same size fields as a `Buffer` result. It starts only after Ghostscript finishes. `output` is rejected. Closing the stream removes the temporary file. With `returnOriginalIfLarger`, the stream can carry the original bytes.
+
 `split` writes one compressed file per page. The output path must contain `%d`, which is replaced with the source page number. A repeated page is rejected. If a later page fails, files from this split are removed:
 
 ```tsx
@@ -148,8 +152,8 @@ Failures throw `CompressPdfError`. If the binary cannot be found, the message te
 npx compress-pdf --file input.pdf --output ./compressed.pdf
 
 Required:
-  -f, --file <path>             Repeat to join files in order
-  -o, --output <path>           Use %d to write one file per page
+  -f, --file <path>             Repeat to join files in order. Use - for stdin
+  -o, --output <path>           Use %d to write one file per page, or - for stdout
 
 Options:
   -r, --resolution <preset>     screen | ebook | printer | prepress | default | auto (default: ebook)
@@ -171,7 +175,7 @@ Options:
   -h, --help
 ```
 
-An unknown flag exits with code 1 and prints the error plus the help text. A resolution outside the list above is rejected before compression starts. `-r auto` is accepted. `--pages` uses the same page list as `pages`. Repeating `-f` joins files. An `-o` path that contains `%d` splits into one file per page.
+An unknown flag exits with code 1 and prints the error plus the help text. A resolution outside the list above is rejected before compression starts. `-r auto` is accepted. `--pages` uses the same page list as `pages`. Repeating `-f` joins files. An `-o` path that contains `%d` splits into one file per page. `-f -` reads stdin once. `-o -` writes the PDF to stdout and the summary to stderr. A library `output` of `'-'` is still a file named `-`.
 
 ### Usage with Docker
 

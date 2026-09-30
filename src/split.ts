@@ -3,7 +3,13 @@ import path from 'path';
 import { pdfPageCount } from './analyze';
 import compress from './compress';
 import { assertPagesWithin, expandPages, parsePages } from './pages';
-import { CompressPdfError, type Options, type SplitResult } from './types';
+import { holdPdf } from './pdf-source';
+import {
+  CompressPdfError,
+  type Options,
+  type PdfSource,
+  type SplitResult,
+} from './types';
 
 function outputPattern(value: string): string {
   const placeholders = value.split('%d').length - 1;
@@ -46,7 +52,7 @@ function withoutSplitFields(options: Options): Options {
  * `output` must contain `%d`, replaced with the source page number.
  */
 async function split(
-  file: string | Buffer,
+  file: PdfSource,
   options: Options & { output: string }
 ): Promise<SplitResult> {
   const startTime = Date.now();
@@ -59,57 +65,64 @@ async function split(
 
   const pageList =
     options.pages !== undefined ? parsePages(options.pages) : undefined;
-  const count = await pdfPageCount(file, {
-    gsModule: options.gsModule,
-    pdfPassword: options.pdfPassword,
-    timeout: options.timeout,
-    signal: options.signal,
-  });
-  if (pageList !== undefined) {
-    assertPagesWithin(pageList, count);
-  }
-  const numbers = pageList
-    ? expandPages(pageList)
-    : Array.from({ length: count }, (_item, index) => index + 1);
-  if (numbers.length === 0) {
-    throw new CompressPdfError('the PDF has no pages');
-  }
-  assertDistinctPages(numbers);
-
-  const shared = withoutSplitFields(options);
-  const files: string[] = [];
-  let index = 0;
-
-  // Each page is its own Ghostscript run, in the requested order.
-  /* eslint-disable no-await-in-loop */
+  const held = await holdPdf(file);
   try {
-    while (index < numbers.length) {
-      const page = numbers[index];
-      index += 1;
-      const destination = path.resolve(pattern.replace('%d', String(page)));
-      await fs.promises.mkdir(path.dirname(destination), { recursive: true });
-      try {
-        await compress(file, {
-          ...shared,
-          pages: String(page),
-          output: destination,
-        });
-      } catch (error) {
-        await removeFiles([destination]);
-        throw error;
-      }
-      files.push(destination);
+    const count = await pdfPageCount(held.filePath, {
+      gsModule: options.gsModule,
+      pdfPassword: options.pdfPassword,
+      timeout: options.timeout,
+      signal: options.signal,
+    });
+    if (pageList !== undefined) {
+      assertPagesWithin(pageList, count);
     }
-  } catch (error) {
-    await removeFiles(files);
-    throw error;
-  }
-  /* eslint-enable no-await-in-loop */
+    const numbers = pageList
+      ? expandPages(pageList)
+      : Array.from({ length: count }, (_item, index) => index + 1);
+    if (numbers.length === 0) {
+      throw new CompressPdfError('the PDF has no pages');
+    }
+    assertDistinctPages(numbers);
 
-  return {
-    files,
-    duration: Date.now() - startTime,
-  };
+    const shared = withoutSplitFields(options);
+    const files: string[] = [];
+    let index = 0;
+
+    // Each page is its own Ghostscript run, in the requested order.
+    /* eslint-disable no-await-in-loop */
+    try {
+      while (index < numbers.length) {
+        const page = numbers[index];
+        index += 1;
+        const destination = path.resolve(pattern.replace('%d', String(page)));
+        await fs.promises.mkdir(path.dirname(destination), { recursive: true });
+        try {
+          await compress(held.filePath, {
+            ...shared,
+            pages: String(page),
+            output: destination,
+          });
+        } catch (error) {
+          await removeFiles([destination]);
+          throw error;
+        }
+        files.push(destination);
+      }
+    } catch (error) {
+      await removeFiles(files);
+      throw error;
+    }
+    /* eslint-enable no-await-in-loop */
+
+    return {
+      files,
+      duration: Date.now() - startTime,
+    };
+  } finally {
+    if (held.temp) {
+      await fs.promises.unlink(held.filePath).catch(() => undefined);
+    }
+  }
 }
 
 export default split;

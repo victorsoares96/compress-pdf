@@ -4,6 +4,7 @@
 
 ### ✨ New Features
 
+- `compress` accepts a `Uint8Array`, an `ArrayBuffer`, or a stream, and reads it fully before Ghostscript. `compressStream` returns the finished PDF as a stream after Ghostscript finishes, and rejects `output`. The CLI accepts `-f -` for stdin and `-o -` for stdout. The summary for stdout is written to stderr.
 - `pages` keeps the pages you list, numbered from 1, such as `1-3,5`. A backwards range such as `5-1` stays in that order. `compress([a, b])` joins files in that order. `split` writes one file per page when the output path contains `%d`. The CLI flags are `--pages`, repeated `-f`, and an `-o` path with `%d`.
 - `pdfa` writes a PDF/A-1b, PDF/A-2b, or PDF/A-3b file in the same Ghostscript pass. Omitted by default. `1b` uses PDF 1.4 and `2b` / `3b` use PDF 1.7. Color is converted to RGB. The CLI flag is `--pdfa <1b|2b|3b>`.
 - `stripMetadata` clears title, author, subject, keywords, and creator on the compressed PDF. `setMetadata` writes the fields you pass. `sanitize` clears that info, and Ghostscript rebuilds the extra metadata block from the cleared values. All three default to off. Ghostscript still writes its own producer and dates.

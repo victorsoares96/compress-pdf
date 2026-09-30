@@ -1,8 +1,9 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { Readable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import compress from '@/compress';
+import compress, { compressStream } from '@/compress';
 import split from '@/split';
 import type { CompressFileResult } from '../src/types';
 
@@ -10,6 +11,7 @@ import { runCli } from '../src/cli';
 
 vi.mock('@/compress', () => ({
   default: vi.fn(),
+  compressStream: vi.fn(),
 }));
 
 vi.mock('@/split', () => ({
@@ -17,6 +19,7 @@ vi.mock('@/split', () => ({
 }));
 
 const compressMock = vi.mocked(compress);
+const compressStreamMock = vi.mocked(compressStream);
 const splitMock = vi.mocked(split);
 
 function stubFileResult(
@@ -55,6 +58,7 @@ describe('runCli', () => {
       errors.push(args.map(String).join(' '));
     });
     compressMock.mockReset();
+    compressStreamMock.mockReset();
     splitMock.mockReset();
   });
 
@@ -576,5 +580,74 @@ describe('runCli', () => {
       fs.unlinkSync(first);
       fs.unlinkSync(second);
     }
+  });
+
+  it('reads stdin and writes the PDF to stdout', async () => {
+    const pdf = path.join(os.tmpdir(), `compress-cli-stdin-${process.pid}.pdf`);
+    const outp = path.join(
+      os.tmpdir(),
+      `compress-cli-stdout-${process.pid}.pdf`
+    );
+    fs.writeFileSync(pdf, '%PDF');
+    const bytes = Buffer.from('%PDF-out');
+    compressStreamMock.mockResolvedValue(
+      Object.assign(Readable.from(bytes), {
+        originalSize: 2048,
+        compressedSize: bytes.length,
+        compressionRatio: bytes.length / 2048,
+        duration: 42,
+      }) as never
+    );
+    compressMock.mockResolvedValue(
+      stubFileResult(outp, Buffer.from('x'), false) as never
+    );
+    const written: Buffer[] = [];
+    const write = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation(
+        (chunk: unknown, encoding?: unknown, cb?: unknown) => {
+          const callback = typeof encoding === 'function' ? encoding : cb;
+          if (Buffer.isBuffer(chunk) || typeof chunk === 'string') {
+            written.push(Buffer.from(chunk));
+          }
+          if (typeof callback === 'function') callback();
+          return true;
+        }
+      );
+
+    try {
+      const stdinCode = await runCli(['-f', '-', '-o', outp]);
+      expect(stdinCode).toBe(0);
+      expect(compressMock).toHaveBeenCalledWith(
+        process.stdin,
+        expect.objectContaining({ output: outp })
+      );
+
+      compressMock.mockClear();
+      errors.length = 0;
+      const stdoutCode = await runCli(['-f', pdf, '-o', '-']);
+      expect(stdoutCode).toBe(0);
+      expect(compressStreamMock).toHaveBeenCalledWith(
+        pdf,
+        expect.not.objectContaining({ output: expect.anything() })
+      );
+      expect(Buffer.concat(written).equals(bytes)).toBe(true);
+      expect(errors.join('\n')).toContain('PDF compressed successfully');
+      expect(logs.join('\n')).not.toContain('%PDF-out');
+      expect(splitMock).not.toHaveBeenCalled();
+    } finally {
+      write.mockRestore();
+      fs.unlinkSync(pdf);
+      if (fs.existsSync(outp)) fs.unlinkSync(outp);
+    }
+  });
+
+  it('rejects a second stdin before compressing', async () => {
+    const code = await runCli(['-f', '-', '-f', '-', '-o', 'out.pdf']);
+    expect(code).toBe(1);
+    expect(errors.join('\n')).toContain('stdin can only be read once');
+    expect(compressMock).not.toHaveBeenCalled();
+    expect(compressStreamMock).not.toHaveBeenCalled();
+    expect(splitMock).not.toHaveBeenCalled();
   });
 });
