@@ -217,7 +217,7 @@ describe('pdfa', () => {
 
     const { definition } = recorded(dir)[0];
     expect(definition).toContain(
-      icc.replace(/\(/g, '\\(').replace(/\)/g, '\\)')
+      icc.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')
     );
     expect(definition).not.toContain(icc);
   });
