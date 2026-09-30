@@ -2,6 +2,7 @@
 import { parseArgs } from 'node:util';
 import fs from 'fs';
 import compress from '@/compress';
+import split from '@/split';
 import {
   VALID_RESOLUTIONS,
   type PdfMetadata,
@@ -9,6 +10,7 @@ import {
   type ResolutionSetting,
 } from './types';
 import { isPdfaLevel } from './pdfa';
+import { parsePages } from './pages';
 
 export const helpText = `
 compress-pdf - Compress PDF files using Ghostscript
@@ -17,12 +19,13 @@ Usage:
   npx compress-pdf --file <input> --output <output> [options]
 
 Required:
-  -f, --file <path>          Path to the PDF file to compress
-  -o, --output <path>        Path to save the compressed PDF
+  -f, --file <path>          Path to a PDF. Repeat to join files in order
+  -o, --output <path>        Where to write. Use %d for one file per page
 
 Options:
   -r, --resolution <preset>  screen | ebook | printer | prepress | default | auto
                              (default: ebook). auto picks screen, ebook, or printer
+  --pages <list>             Pages to keep, such as 1-3,5
   --compatibilityLevel <n>   PDF compatibility level (default: 1.4)
   --pdfa <level>             Write PDF/A in the same pass: 1b, 2b, or 3b
   --imageQuality <n>         Image resolution/quality in DPI, 1-600 (default: 100)
@@ -52,12 +55,20 @@ Examples:
   npx compress-pdf -f input.pdf -o output.pdf --stripMetadata
   npx compress-pdf -f input.pdf -o output.pdf --title "Report" --author "Ada"
   npx compress-pdf -f input.pdf -o output.pdf --pdfa 1b
+  npx compress-pdf -f a.pdf -f b.pdf -o merged.pdf
+  npx compress-pdf -f input.pdf -o page-%d.pdf --pages 1-3
 `;
 
 function getStringValue(
-  value: string | boolean | undefined
+  value: string | boolean | string[] | undefined
 ): string | undefined {
   return typeof value === 'string' ? value : undefined;
+}
+
+function fileList(value: string | boolean | string[] | undefined): string[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') return [value];
+  return [];
 }
 
 function metadataFromFlags(values: {
@@ -80,7 +91,8 @@ function metadataFromFlags(values: {
 }
 
 const cliOptions = {
-  file: { type: 'string', short: 'f' },
+  file: { type: 'string', short: 'f', multiple: true },
+  pages: { type: 'string' },
   output: { type: 'string', short: 'o' },
   resolution: { type: 'string', short: 'r' },
   compatibilityLevel: { type: 'string' },
@@ -127,7 +139,7 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
     return 0;
   }
 
-  const file = getStringValue(values.file);
+  const files = fileList(values.file);
   const output = getStringValue(values.output);
   const resolution = getStringValue(values.resolution);
   const compatibilityLevel = getStringValue(values.compatibilityLevel);
@@ -135,18 +147,57 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
   const imageQuality = getStringValue(values.imageQuality);
   const gsModule = getStringValue(values.gsModule);
   const targetSize = getStringValue(values.targetSize);
+  const pagesText = getStringValue(values.pages);
   const pdfPassword =
     getStringValue(values.pdfPassword) ?? process.env.COMPRESS_PDF_PASSWORD;
 
-  if (!file || !output) {
+  if (files.length === 0 || !output) {
     console.error(
       'Error: --file and --output are required.\n\nRun with --help for usage information.'
     );
     return 1;
   }
 
-  if (!fs.existsSync(file)) {
-    console.error(`Error: File not found: ${file}`);
+  const missing = files.find((filePath) => !fs.existsSync(filePath));
+  if (missing) {
+    console.error(`Error: File not found: ${missing}`);
+    return 1;
+  }
+
+  if (pagesText !== undefined) {
+    try {
+      parsePages(pagesText);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error: ${message}\n\n${helpText}`);
+      return 1;
+    }
+  }
+
+  const placeholders = output.split('%d').length - 1;
+  if (placeholders > 1) {
+    console.error(
+      `Error: split output must contain %d once, got ${output}\n\n${helpText}`
+    );
+    return 1;
+  }
+  const splitting = placeholders === 1;
+  if (files.length > 1 && pagesText !== undefined) {
+    console.error(
+      `Error: pages cannot be used when compressing more than one PDF\n\n${helpText}`
+    );
+    return 1;
+  }
+  if (files.length > 1 && splitting) {
+    console.error(
+      `Error: an output path with %d cannot be used with more than one --file\n\n${helpText}`
+    );
+    return 1;
+  }
+  if (splitting && values.returnOriginalIfLarger) {
+    console.error(
+      `Error: returnOriginalIfLarger cannot be used when splitting a PDF\n\n${helpText}`
+    );
     return 1;
   }
 
@@ -168,25 +219,40 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
     return 1;
   }
 
+  const shared = {
+    resolution: resolution ? (resolution as ResolutionSetting) : undefined,
+    compatibilityLevel: compatibilityLevel
+      ? Number(compatibilityLevel)
+      : undefined,
+    pdfa: pdfa as PdfaLevel | undefined,
+    imageQuality: imageQuality ? Number(imageQuality) : undefined,
+    gsModule,
+    pdfPassword,
+    removePasswordAfterCompression:
+      values.removePasswordAfterCompression as boolean,
+    returnOriginalIfLarger: values.returnOriginalIfLarger as boolean,
+    targetSize: targetSize ? Number(targetSize) : undefined,
+    stripMetadata: values.stripMetadata as boolean,
+    sanitize: values.sanitize as boolean,
+    setMetadata: metadataFromFlags(values),
+    ...(pagesText !== undefined ? { pages: pagesText } : {}),
+    output,
+  };
+
   try {
-    const result = await compress(file, {
-      resolution: resolution ? (resolution as ResolutionSetting) : undefined,
-      compatibilityLevel: compatibilityLevel
-        ? Number(compatibilityLevel)
-        : undefined,
-      pdfa: pdfa as PdfaLevel | undefined,
-      imageQuality: imageQuality ? Number(imageQuality) : undefined,
-      gsModule,
-      pdfPassword,
-      removePasswordAfterCompression:
-        values.removePasswordAfterCompression as boolean,
-      returnOriginalIfLarger: values.returnOriginalIfLarger as boolean,
-      targetSize: targetSize ? Number(targetSize) : undefined,
-      stripMetadata: values.stripMetadata as boolean,
-      sanitize: values.sanitize as boolean,
-      setMetadata: metadataFromFlags(values),
-      output,
-    });
+    if (splitting) {
+      const result = await split(files[0], shared);
+      console.log('✅ PDF split successfully!');
+      console.log(`   ${result.files.length} files`);
+      console.log(`   Time: ${result.duration}ms`);
+      result.files.forEach((filePath) => {
+        console.log(`   Output: ${filePath}`);
+      });
+      return 0;
+    }
+
+    const source = files.length === 1 ? files[0] : files;
+    const result = await compress(source, shared);
 
     const ratio = ((1 - result.compressionRatio) * 100).toFixed(1);
     const originalKB = (result.originalSize / 1024).toFixed(1);

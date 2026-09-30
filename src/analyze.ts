@@ -251,4 +251,52 @@ async function analyze(
   }
 }
 
+/**
+ * How many pages the PDF has. Uses the same Ghostscript report as `analyze`,
+ * without counting images.
+ */
+export async function pdfPageCount(
+  file: string | Buffer,
+  options?: AnalyzeOptions
+): Promise<number> {
+  const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
+  const pdfPassword = options?.pdfPassword ?? '';
+  const gsModule = options?.gsModule ?? getBinPath(os.platform());
+
+  if (typeof file === 'string' && !fs.existsSync(file)) {
+    throw new CompressPdfError(`File not found: ${file}`);
+  }
+
+  let tempInput: string | undefined;
+  try {
+    const inputFile =
+      typeof file === 'string'
+        ? path.resolve(file)
+        : path.resolve(os.tmpdir(), `compress-pdf-${randomUUID()}`);
+    if (typeof file !== 'string') {
+      tempInput = inputFile;
+      await fs.promises.writeFile(tempInput, file);
+    }
+
+    const report = await runPdfInfo({
+      gsModule,
+      inputFile,
+      pdfPassword,
+      timeout,
+      signal: options?.signal,
+    });
+    const structured = parseStructured(report);
+    if (structured) return structured.pages;
+    const info = parsePdfInfo(report);
+    if (!info) {
+      throw new CompressPdfError('Ghostscript failed to inspect the PDF.');
+    }
+    return info.pages;
+  } finally {
+    if (tempInput) {
+      await fs.promises.unlink(tempInput).catch(() => undefined);
+    }
+  }
+}
+
 export default analyze;
