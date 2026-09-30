@@ -95,8 +95,8 @@ export type Options = {
   /**
    * JPEG quality for color and gray photos, from 1 to 100.
    * `100` keeps the most detail. Omitted by default, so the preset
-   * keeps Ghostscript's own factor. Black-and-white images stay on
-   * fax compression.
+   * keeps Ghostscript's own factor. When set, those photos are stored
+   * as JPEG. Black-and-white images stay on fax compression.
    */
   jpegQuality?: number;
   /**

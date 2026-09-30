@@ -1,3 +1,4 @@
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -56,6 +57,10 @@ describe('jpegQuality', () => {
     expect(program).toContain('/HSamples [1 1 1 1]');
     expect(program).toContain('/VSamples [1 1 1 1]');
     expect(program).toContain('/ColorTransform 1');
+    expect(program).toContain('/AutoFilterColorImages false');
+    expect(program).toContain('/ColorImageFilter /DCTEncode');
+    expect(program).toContain('/AutoFilterGrayImages false');
+    expect(program).toContain('/GrayImageFilter /DCTEncode');
     const gray = program.split('/GrayImageDict ')[1]?.split(' >> ')[0] ?? '';
     expect(gray).not.toContain('ColorTransform');
   });
@@ -164,4 +169,85 @@ describe('jpegQuality', () => {
       expect(args[args.indexOf('-c') + 1]).toContain('/QFactor 0.76');
     });
   });
+});
+
+function jpegPhoto(dir: string, gs: string): string {
+  const raw = path.join(dir, 'noise.raw');
+  const ps = path.join(dir, 'noise.ps');
+  const jpg = path.join(dir, 'noise.jpg');
+  const pdf = path.join(dir, 'photo.pdf');
+  const width = 160;
+  const height = 160;
+  const pixels = Buffer.alloc(width * height * 3);
+  for (let index = 0; index < pixels.length; index += 1) {
+    const x = index % width;
+    const y = Math.floor(index / width);
+    const mixed = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+    pixels[index] = Math.floor((mixed - Math.floor(mixed)) * 256);
+  }
+  fs.writeFileSync(raw, pixels);
+  const postscript = `%!PS
+<< /PageSize [${width} ${height}] >> setpagedevice
+/row ${width * 3} string def
+/src (${raw}) (r) file def
+${width} ${height} 8 [1 0 0 -1 0 ${height}]
+{ src row readstring pop } false 3 colorimage
+showpage
+`;
+  fs.writeFileSync(ps, postscript);
+  execFileSync(gs, [
+    '-q',
+    '-dNOPAUSE',
+    '-dBATCH',
+    '-dNOSAFER',
+    '-sDEVICE=jpeg',
+    '-dJPEGQ=70',
+    '-r72',
+    `-g${width}x${height}`,
+    `-sOutputFile=${jpg}`,
+    ps,
+  ]);
+  execFileSync(gs, [
+    '-q',
+    '-dNOPAUSE',
+    '-dBATCH',
+    '-sDEVICE=pdfwrite',
+    `-sOutputFile=${pdf}`,
+    'viewjpeg.ps',
+    '-c',
+    `(${jpg}) viewJPEG`,
+  ]);
+  return pdf;
+}
+
+describe('jpegQuality with Ghostscript', () => {
+  const gs = '/usr/bin/gs';
+
+  it.skipIf(!fs.existsSync(gs))(
+    'keeps the photo as JPEG and writes a smaller file at a lower quality',
+    async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compress-pdf-jpeg-'));
+      const input = jpegPhoto(dir, gs);
+      const sharp = path.join(dir, 'sharp.pdf');
+      const small = path.join(dir, 'small.pdf');
+
+      await compress(input, {
+        gsModule: gs,
+        output: sharp,
+        jpegQuality: 100,
+      });
+      await compress(input, {
+        gsModule: gs,
+        output: small,
+        jpegQuality: 1,
+      });
+
+      const sharpBytes = fs.readFileSync(sharp);
+      const smallBytes = fs.readFileSync(small);
+      expect(sharpBytes.includes(Buffer.from('DCTDecode'))).toBe(true);
+      expect(smallBytes.includes(Buffer.from('DCTDecode'))).toBe(true);
+      expect(smallBytes.length).toBeLessThan(sharpBytes.length * 0.8);
+    },
+    30000
+  );
 });

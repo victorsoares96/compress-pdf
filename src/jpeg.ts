@@ -27,11 +27,13 @@ function imageDict(factor: string, color: boolean): string {
 
 /**
  * Distiller params applied before the input file.
+ * Color and gray images are forced to JPEG so the factor is used.
  * Samples stay [1 1 1 1] so the quality number is the only extra loss.
+ * Black-and-white images are left on fax compression.
  */
 export function buildJpegProgram(quality: number): string {
   const factor = jpegQFactor(quality);
   const color = imageDict(factor, true);
   const gray = imageDict(factor, false);
-  return `<< /ColorImageDict ${color} /GrayImageDict ${gray} /ColorACSImageDict ${color} /GrayACSImageDict ${gray} >> setdistillerparams`;
+  return `<< /ColorImageDict ${color} /GrayImageDict ${gray} /ColorACSImageDict ${color} /GrayACSImageDict ${gray} /AutoFilterColorImages false /ColorImageFilter /DCTEncode /AutoFilterGrayImages false /GrayImageFilter /DCTEncode >> setdistillerparams`;
 }
