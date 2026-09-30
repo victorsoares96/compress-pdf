@@ -134,6 +134,7 @@ describe('runCli', () => {
         stripMetadata: false,
         sanitize: false,
         setMetadata: undefined,
+        pdfa: undefined,
         output: outp,
       });
       expect(logs.some((l) => l.includes('PDF compressed successfully'))).toBe(
@@ -189,6 +190,7 @@ describe('runCli', () => {
         stripMetadata: false,
         sanitize: false,
         setMetadata: undefined,
+        pdfa: undefined,
         output: outp,
       });
     } finally {
@@ -334,6 +336,52 @@ describe('runCli', () => {
     } finally {
       fs.unlinkSync(pdf);
       if (fs.existsSync(outp)) fs.unlinkSync(outp);
+    }
+  });
+
+  it('maps --pdfa into compress options', async () => {
+    const pdf = path.join(os.tmpdir(), `compress-cli-pdfa-${process.pid}.pdf`);
+    const outp = path.join(
+      os.tmpdir(),
+      `compress-cli-pdfa-out-${process.pid}.pdf`
+    );
+    fs.writeFileSync(pdf, '%PDF');
+    compressMock.mockResolvedValue(
+      stubFileResult(outp, Buffer.from('x'), false) as never
+    );
+
+    try {
+      const code = await runCli(['-f', pdf, '-o', outp, '--pdfa', '3b']);
+      expect(code).toBe(0);
+      expect(compressMock).toHaveBeenCalledWith(
+        pdf,
+        expect.objectContaining({ pdfa: '3b', output: outp })
+      );
+    } finally {
+      fs.unlinkSync(pdf);
+      if (fs.existsSync(outp)) fs.unlinkSync(outp);
+    }
+  });
+
+  it('exits 1 before compressing when pdfa is unknown', async () => {
+    const pdf = path.join(
+      os.tmpdir(),
+      `compress-cli-pdfa-bad-${process.pid}.pdf`
+    );
+    const outp = path.join(
+      os.tmpdir(),
+      `compress-cli-pdfa-bad-out-${process.pid}.pdf`
+    );
+    fs.writeFileSync(pdf, '%PDF');
+
+    try {
+      const code = await runCli(['-f', pdf, '-o', outp, '--pdfa', '1a']);
+      expect(code).toBe(1);
+      expect(compressMock).not.toHaveBeenCalled();
+      expect(errors.join('\n')).toContain('Invalid pdfa');
+      expect(fs.existsSync(outp)).toBe(false);
+    } finally {
+      fs.unlinkSync(pdf);
     }
   });
 
