@@ -4,6 +4,7 @@
 
 ### ✨ New Features
 
+- `pages` keeps the pages you list, numbered from 1, such as `1-3,5`. A backwards range such as `5-1` stays in that order. `compress([a, b])` joins files in that order. `split` writes one file per page when the output path contains `%d`. The CLI flags are `--pages`, repeated `-f`, and an `-o` path with `%d`.
 - `pdfa` writes a PDF/A-1b, PDF/A-2b, or PDF/A-3b file in the same Ghostscript pass. Omitted by default. `1b` uses PDF 1.4 and `2b` / `3b` use PDF 1.7. Color is converted to RGB. The CLI flag is `--pdfa <1b|2b|3b>`.
 - `stripMetadata` clears title, author, subject, keywords, and creator on the compressed PDF. `setMetadata` writes the fields you pass. `sanitize` clears that info, and Ghostscript rebuilds the extra metadata block from the cleared values. All three default to off. Ghostscript still writes its own producer and dates.
 - `analyze(file)` reports pages, images, the highest image DPI, fonts, and whether the PDF looks scanned, vector, or mixed. `resolution: 'auto'` picks `screen`, `ebook`, or `printer` from that. The CLI accepts `-r auto`.
@@ -13,6 +14,7 @@
 
 ### 🐛 Bug Fixes
 
+- A page list such as `1-500000000` is rejected from the range ends, without building every page number. A backwards list is copied without recompressing images, then compressed once. `split` rejects a repeated page and removes files already written if a later page fails.
 - Archive extraction no longer builds a shell command. `tar` receives the archive and destination as arguments. The Python fallback receives those paths as arguments and refuses members that would be written outside the destination.
 - Ghostscript calls now use a 120 second timeout, a 16 MB stderr buffer, and an optional `signal`. A missing binary explains `COMPRESS_PDF_BIN_PATH` and manual installation. Input paths are resolved to absolute paths before Ghostscript sees them.
 - `imageQuality` and `compatibilityLevel` now reject `NaN` and other non-finite numbers before Ghostscript runs.

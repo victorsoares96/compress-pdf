@@ -148,6 +148,12 @@ export type Options = {
    * Default is `false`.
    */
   sanitize?: boolean;
+  /**
+   * Pages to keep, numbered from 1. Example: `1-3,5`.
+   * Omitted by default, so the whole PDF is compressed.
+   * The written order is the output order, including a backwards range such as `5-1`.
+   */
+  pages?: string;
 };
 
 /**
@@ -170,6 +176,14 @@ export type CompressResult = {
 export type CompressFileResult = CompressResult & {
   /** Absolute path written by compression */
   output: string;
+};
+
+/**
+ * One compressed file per page. `files` are absolute paths.
+ */
+export type SplitResult = {
+  files: string[];
+  duration: number;
 };
 
 /**

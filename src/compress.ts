@@ -5,7 +5,8 @@ import os from 'os';
 import childProcess from 'child_process';
 import { randomUUID } from 'crypto';
 import getBinPath from './get-bin-path';
-import analyze, { presetForKind } from './analyze';
+import analyze, { pdfPageCount, presetForKind } from './analyze';
+import { assertPagesWithin, expandPages, parsePages } from './pages';
 import { assertMetadata, buildDocinfoProgram } from './metadata';
 import {
   assertPdfa,
@@ -50,6 +51,7 @@ const defaultOptions: Required<
     | 'resolution'
     | 'setMetadata'
     | 'pdfa'
+    | 'pages'
   >
 > & { resolution: Resolution } = {
   compatibilityLevel: 1.4,
@@ -73,6 +75,7 @@ type ResolvedOptions = Required<
     | 'resolution'
     | 'setMetadata'
     | 'pdfa'
+    | 'pages'
   >
 > & {
   gsModule: string;
@@ -82,6 +85,7 @@ type ResolvedOptions = Required<
   targetSize?: number;
   setMetadata?: PdfMetadata;
   pdfa?: PdfaLevel;
+  pages?: string;
 };
 
 type AttemptSettings = {
@@ -167,7 +171,7 @@ function validateOptions(opts: ResolvedOptions): void {
  */
 function buildGsArgs(options: {
   output: string;
-  inputFile: string;
+  inputFiles: string[];
   compatibilityLevel: number;
   resolution: string;
   imageQuality: number;
@@ -178,6 +182,7 @@ function buildGsArgs(options: {
   setMetadata?: PdfMetadata;
   pdfa?: PdfaLevel;
   pdfaDefinition?: string;
+  pages?: string;
 }): string[] {
   const args: string[] = [
     '-q',
@@ -199,6 +204,10 @@ function buildGsArgs(options: {
     `-dMonoImageResolution=${options.imageQuality}`,
     `-sOutputFile=${options.output}`,
   ];
+
+  if (options.pages !== undefined) {
+    args.push(`-sPageList=${options.pages}`);
+  }
 
   if (options.pdfa) {
     args.push(...pdfaFlags(options.pdfa));
@@ -224,9 +233,9 @@ function buildGsArgs(options: {
     args.push(options.pdfaDefinition);
   }
   if (docinfo) {
-    args.push('-f', options.inputFile, '-c', docinfo);
+    args.push('-f', ...options.inputFiles, '-c', docinfo);
   } else {
-    args.push(options.inputFile);
+    args.push(...options.inputFiles);
   }
 
   return args;
@@ -356,28 +365,72 @@ async function runGhostscript(options: {
   }
 }
 
+type PdfSource = string | Buffer;
+
+function isStrictlyIncreasing(pages: readonly number[]): boolean {
+  return pages.every((page, index) => index === 0 || page > pages[index - 1]);
+}
+
+/** Copy a page as-is. The caller's compression runs once, on the joined file. */
+const COPY_PAGE_ARGS = [
+  '-dPassThroughJPEGImages=true',
+  '-dPassThroughJPXImages=true',
+  '-dDownsampleColorImages=false',
+  '-dDownsampleGrayImages=false',
+  '-dDownsampleMonoImages=false',
+  '-dEncodeColorImages=false',
+  '-dEncodeGrayImages=false',
+  '-dEncodeMonoImages=false',
+];
+
+function sourcesOf(file: PdfSource | readonly PdfSource[]): PdfSource[] {
+  if (typeof file === 'string' || Buffer.isBuffer(file)) {
+    return [file];
+  }
+  if (file.length === 0) {
+    throw new CompressPdfError('compress needs at least one PDF');
+  }
+  return [...file];
+}
+
+async function combinedSize(inputs: readonly PdfSource[]): Promise<number> {
+  const sizes = await Promise.all(
+    inputs.map(async (input) => {
+      if (typeof input === 'string') {
+        return (await fs.promises.stat(input)).size;
+      }
+      return input.length;
+    })
+  );
+  return sizes.reduce((total, size) => total + size, 0);
+}
+
 /**
  * Compress a PDF file using Ghostscript.
+ * A list of files is joined in that order.
  *
- * @param file - Path to the PDF file or a Buffer containing the PDF data.
+ * @param file - Path, buffer, or a list of those.
  * @param options - Compression options. When `output` is set, Ghostscript
  *          writes to that path and the PDF bytes are not returned.
  */
 async function compress(
-  file: string | Buffer,
+  file: PdfSource | readonly PdfSource[],
   options: Options & { output: string }
 ): Promise<CompressFileResult>;
 async function compress(
-  file: string | Buffer,
+  file: PdfSource | readonly PdfSource[],
   options?: Options
 ): Promise<Buffer & CompressResult>;
 async function compress(
-  file: string | Buffer,
+  file: PdfSource | readonly PdfSource[],
   options?: Options
 ): Promise<(Buffer & CompressResult) | CompressFileResult> {
   const startTime = Date.now();
 
   const userOptions = definedOptions(options);
+  const inputs = sourcesOf(file);
+  const pageList =
+    userOptions.pages !== undefined ? parsePages(userOptions.pages) : undefined;
   assertPdfa(userOptions.pdfa);
   if (userOptions.pdfa) {
     const requiredLevel = pdfaCompatibility(userOptions.pdfa);
@@ -397,8 +450,24 @@ async function compress(
     resolvedResolution = requestedResolution;
   }
 
+  if (inputs.length > 1) {
+    if (pageList !== undefined) {
+      throw new CompressPdfError(
+        'pages cannot be used when compressing more than one PDF'
+      );
+    }
+    if (requestedResolution === 'auto') {
+      throw new CompressPdfError('resolution auto needs a single PDF');
+    }
+    if (userOptions.returnOriginalIfLarger) {
+      throw new CompressPdfError(
+        'returnOriginalIfLarger cannot be used when compressing more than one PDF'
+      );
+    }
+  }
+
   if (requestedResolution === 'auto') {
-    const info = await analyze(file, {
+    const info = await analyze(inputs[0], {
       gsModule: resolvedGsModule,
       pdfPassword: userOptions.pdfPassword,
       timeout: userOptions.timeout,
@@ -433,11 +502,6 @@ async function compress(
     pdfa,
   } = mergedOptions;
 
-  // Validate that source file exists (when path is provided)
-  if (typeof file === 'string' && !fs.existsSync(file)) {
-    throw new CompressPdfError(`File not found: ${file}`);
-  }
-
   const userOutput =
     typeof userOptions.output === 'string' && userOptions.output.length > 0
       ? path.resolve(userOptions.output)
@@ -451,9 +515,9 @@ async function compress(
         })
       : [{ resolution: resolution as Resolution, imageQuality }];
 
-  let tempInput: string | undefined;
   let pdfaDefinition: string | undefined;
   const attemptOutputs: string[] = [];
+  const tempInputs: string[] = [];
 
   try {
     if (pdfa) {
@@ -465,14 +529,77 @@ async function compress(
       await fs.promises.writeFile(pdfaDefinition, buildPdfaDefinition(iccPath));
     }
 
-    let inputFile: string;
+    const prepared = await Promise.all(
+      inputs.map(async (input) => {
+        if (typeof input === 'string') {
+          if (!fs.existsSync(input)) {
+            throw new CompressPdfError(`File not found: ${input}`);
+          }
+          return { filePath: path.resolve(input), temp: false };
+        }
+        const filePath = path.resolve(
+          os.tmpdir(),
+          `compress-pdf-${randomUUID()}`
+        );
+        tempInputs.push(filePath);
+        await fs.promises.writeFile(filePath, input);
+        return { filePath, temp: true };
+      })
+    );
+    let inputFiles = prepared.map((item) => item.filePath);
+    let gsPages = pageList;
 
-    if (typeof file === 'string') {
-      inputFile = path.resolve(file);
-    } else {
-      tempInput = path.resolve(os.tmpdir(), `compress-pdf-${randomUUID()}`);
-      await fs.promises.writeFile(tempInput, file);
-      inputFile = tempInput;
+    if (pageList !== undefined) {
+      const count = await pdfPageCount(inputFiles[0], {
+        gsModule,
+        pdfPassword,
+        timeout,
+        signal,
+      });
+      assertPagesWithin(pageList, count);
+      const numbers = expandPages(pageList);
+      if (!isStrictlyIncreasing(numbers)) {
+        const extracted: string[] = [];
+        let pageIndex = 0;
+        // Ghostscript only accepts a page list in increasing order.
+        // Copy each page without recompressing images, then compress
+        // those files once, in the written order.
+        /* eslint-disable no-await-in-loop */
+        while (pageIndex < numbers.length) {
+          const page = numbers[pageIndex];
+          pageIndex += 1;
+          const filePath = path.resolve(
+            os.tmpdir(),
+            `compress-pdf-${randomUUID()}`
+          );
+          tempInputs.push(filePath);
+          const args = [
+            '-q',
+            '-dNOPAUSE',
+            '-dBATCH',
+            '-dSAFER',
+            '-sDEVICE=pdfwrite',
+            ...COPY_PAGE_ARGS,
+            `-sPageList=${page}`,
+            `-sOutputFile=${filePath}`,
+          ];
+          if (pdfPassword) {
+            args.push(`-sPDFPassword=${pdfPassword}`);
+          }
+          args.push(inputFiles[0]);
+          await runGhostscript({
+            gsModule,
+            args,
+            timeout,
+            signal,
+            pdfPassword,
+          });
+          extracted.push(filePath);
+        }
+        /* eslint-enable no-await-in-loop */
+        inputFiles = extracted;
+        gsPages = undefined;
+      }
     }
 
     let bestFittingPath: string | undefined;
@@ -509,7 +636,7 @@ async function compress(
 
       const args = buildGsArgs({
         output: attemptOut,
-        inputFile,
+        inputFiles,
         compatibilityLevel,
         resolution: attempt.resolution,
         imageQuality: attempt.imageQuality,
@@ -520,6 +647,7 @@ async function compress(
         setMetadata,
         pdfa,
         pdfaDefinition,
+        pages: gsPages,
       });
 
       let size: number;
@@ -578,16 +706,17 @@ async function compress(
       throw new CompressPdfError('Ghostscript failed to compress the PDF.');
     }
 
-    const originalSize =
-      typeof file === 'string'
-        ? (await fs.promises.stat(file)).size
-        : file.length;
+    const originalSize = await combinedSize(inputs);
     const duration = Date.now() - startTime;
-    const useOriginal = returnOriginalIfLarger && chosenSize >= originalSize;
+    const useOriginal =
+      inputs.length === 1 &&
+      returnOriginalIfLarger &&
+      chosenSize >= originalSize;
+    const soleInput = inputs[0];
 
     if (userOutput) {
       if (useOriginal) {
-        await writeOriginalTo(file, userOutput);
+        await writeOriginalTo(soleInput, userOutput);
       } else if (chosenPath !== userOutput) {
         await fs.promises.copyFile(chosenPath, userOutput);
       }
@@ -608,9 +737,9 @@ async function compress(
     let resultBuffer: Buffer;
     if (useOriginal) {
       resultBuffer =
-        typeof file === 'string'
-          ? await fs.promises.readFile(file)
-          : Buffer.from(file);
+        typeof soleInput === 'string'
+          ? await fs.promises.readFile(soleInput)
+          : Buffer.from(soleInput);
     } else {
       resultBuffer = await fs.promises.readFile(chosenPath);
     }
@@ -632,7 +761,7 @@ async function compress(
 
     return resultBuffer as Buffer & CompressResult;
   } finally {
-    if (tempInput) await safeUnlink(tempInput);
+    await Promise.all(tempInputs.map((filePath) => safeUnlink(filePath)));
     if (pdfaDefinition) await safeUnlink(pdfaDefinition);
     await Promise.all(attemptOutputs.map((filePath) => safeUnlink(filePath)));
   }

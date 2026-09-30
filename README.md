@@ -105,6 +105,7 @@ const result = await compress(pdf, {
 | `stripMetadata`                  | When `true`, clear title, author, subject, keywords, and creator. Default is `false`. Ghostscript still writes its own producer and dates.                                       |
 | `setMetadata`                    | Set `title`, `author`, `subject`, and `keywords`. With `stripMetadata` or `sanitize`, fields you omit are cleared.                                                               |
 | `sanitize`                       | When `true`, clear the same document info. Ghostscript then rebuilds the extra metadata block from those cleared values. Links, forms, and annotations stay. Default is `false`. |
+| `pages`                          | Pages to keep, numbered from 1, such as `1-3,5`. Omitted by default, so the whole PDF is compressed. `5-1` stays backwards. A page past the end is rejected.                          |
 
 `analyze(file)` reads the PDF and returns pages, images, the highest image DPI, fonts, and a kind:
 
@@ -123,6 +124,22 @@ const info = await analyze('./scan.pdf');
 const compressed = await compress('./scan.pdf', { resolution: 'auto' });
 ```
 
+`pages` keeps part of one PDF in the same compression pass. `compress` also accepts a list of PDFs and joins them in that order. `pages`, `resolution: 'auto'`, and `returnOriginalIfLarger` need a single PDF. One password is used for every file.
+
+`split` writes one compressed file per page. The output path must contain `%d`, which is replaced with the source page number. A repeated page is rejected. If a later page fails, files from this split are removed:
+
+```tsx
+import { split } from 'compress-pdf';
+
+await compress(['a.pdf', 'b.pdf'], { output: 'merged.pdf' });
+await compress('./input.pdf', { pages: '1-3,5' });
+
+const parts = await split('./input.pdf', {
+  output: './pages/page-%d.pdf',
+  pages: '2,1',
+});
+```
+
 Failures throw `CompressPdfError`. If the binary cannot be found, the message tells you to set `COMPRESS_PDF_BIN_PATH` or install Ghostscript manually. `NaN` is rejected for `imageQuality` and `compatibilityLevel`.
 
 ### CLI Usage
@@ -131,11 +148,12 @@ Failures throw `CompressPdfError`. If the binary cannot be found, the message te
 npx compress-pdf --file input.pdf --output ./compressed.pdf
 
 Required:
-  -f, --file <path>
-  -o, --output <path>
+  -f, --file <path>             Repeat to join files in order
+  -o, --output <path>           Use %d to write one file per page
 
 Options:
   -r, --resolution <preset>     screen | ebook | printer | prepress | default | auto (default: ebook)
+  --pages <list>                Pages to keep, such as 1-3,5
   --compatibilityLevel <n>      PDF compatibility level (default: 1.4)
   --pdfa <level>                Write PDF/A in the same pass: 1b, 2b, or 3b
   --imageQuality <n>            Image resolution in DPI, 1-600 (default: 100)
@@ -153,7 +171,7 @@ Options:
   -h, --help
 ```
 
-An unknown flag exits with code 1 and prints the error plus the help text. A resolution outside the list above is rejected before compression starts. `-r auto` is accepted.
+An unknown flag exits with code 1 and prints the error plus the help text. A resolution outside the list above is rejected before compression starts. `-r auto` is accepted. `--pages` uses the same page list as `pages`. Repeating `-f` joins files. An `-o` path that contains `%d` splits into one file per page.
 
 ### Usage with Docker
 

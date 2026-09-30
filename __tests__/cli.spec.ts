@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import compress from '@/compress';
+import split from '@/split';
 import type { CompressFileResult } from '../src/types';
 
 import { runCli } from '../src/cli';
@@ -11,7 +12,12 @@ vi.mock('@/compress', () => ({
   default: vi.fn(),
 }));
 
+vi.mock('@/split', () => ({
+  default: vi.fn(),
+}));
+
 const compressMock = vi.mocked(compress);
+const splitMock = vi.mocked(split);
 
 function stubFileResult(
   outputPath: string,
@@ -49,6 +55,7 @@ describe('runCli', () => {
       errors.push(args.map(String).join(' '));
     });
     compressMock.mockReset();
+    splitMock.mockReset();
   });
 
   afterEach(() => {
@@ -431,6 +438,143 @@ describe('runCli', () => {
     } finally {
       fs.unlinkSync(pdf);
       if (fs.existsSync(outp)) fs.unlinkSync(outp);
+    }
+  });
+
+  it('maps --pages into compress options', async () => {
+    const pdf = path.join(os.tmpdir(), `compress-cli-pages-${process.pid}.pdf`);
+    const outp = path.join(
+      os.tmpdir(),
+      `compress-cli-pages-out-${process.pid}.pdf`
+    );
+    fs.writeFileSync(pdf, '%PDF');
+    compressMock.mockResolvedValue(
+      stubFileResult(outp, Buffer.from('x'), false) as never
+    );
+
+    try {
+      const code = await runCli(['-f', pdf, '-o', outp, '--pages', '1-3,5']);
+      expect(code).toBe(0);
+      expect(compressMock).toHaveBeenCalledWith(
+        pdf,
+        expect.objectContaining({ pages: '1-3,5', output: outp })
+      );
+      expect(splitMock).not.toHaveBeenCalled();
+    } finally {
+      fs.unlinkSync(pdf);
+      if (fs.existsSync(outp)) fs.unlinkSync(outp);
+    }
+  });
+
+  it('joins repeated --file arguments in order', async () => {
+    const first = path.join(os.tmpdir(), `compress-cli-a-${process.pid}.pdf`);
+    const second = path.join(os.tmpdir(), `compress-cli-b-${process.pid}.pdf`);
+    const outp = path.join(os.tmpdir(), `compress-cli-join-${process.pid}.pdf`);
+    fs.writeFileSync(first, '%PDF');
+    fs.writeFileSync(second, '%PDF');
+    compressMock.mockResolvedValue(
+      stubFileResult(outp, Buffer.from('x'), false) as never
+    );
+
+    try {
+      const code = await runCli(['-f', first, '-f', second, '-o', outp]);
+      expect(code).toBe(0);
+      expect(compressMock).toHaveBeenCalledWith(
+        [first, second],
+        expect.any(Object)
+      );
+    } finally {
+      fs.unlinkSync(first);
+      fs.unlinkSync(second);
+      if (fs.existsSync(outp)) fs.unlinkSync(outp);
+    }
+  });
+
+  it('splits when the output path contains %d', async () => {
+    const pdf = path.join(os.tmpdir(), `compress-cli-split-${process.pid}.pdf`);
+    const outp = path.join(os.tmpdir(), `page-%d-${process.pid}.pdf`);
+    fs.writeFileSync(pdf, '%PDF');
+    const written = path.resolve(outp.replace('%d', '1'));
+    splitMock.mockResolvedValue({ files: [written], duration: 5 });
+
+    try {
+      const code = await runCli(['-f', pdf, '-o', outp, '--pages', '1']);
+      expect(code).toBe(0);
+      expect(splitMock).toHaveBeenCalledWith(
+        pdf,
+        expect.objectContaining({ pages: '1', output: outp })
+      );
+      expect(compressMock).not.toHaveBeenCalled();
+      expect(logs.join('\n')).toContain('PDF split successfully');
+    } finally {
+      fs.unlinkSync(pdf);
+    }
+  });
+
+  it('exits 1 before compressing when pages or split flags disagree', async () => {
+    const first = path.join(
+      os.tmpdir(),
+      `compress-cli-bad-a-${process.pid}.pdf`
+    );
+    const second = path.join(
+      os.tmpdir(),
+      `compress-cli-bad-b-${process.pid}.pdf`
+    );
+    fs.writeFileSync(first, '%PDF');
+    fs.writeFileSync(second, '%PDF');
+    const outp = path.join(os.tmpdir(), `compress-cli-bad-${process.pid}.pdf`);
+
+    try {
+      const pagesCode = await runCli(['-f', first, '-o', outp, '--pages', '0']);
+      expect(pagesCode).toBe(1);
+      expect(errors.join('\n')).toContain('pages must be a list');
+
+      errors.length = 0;
+      const manyCode = await runCli([
+        '-f',
+        first,
+        '-f',
+        second,
+        '-o',
+        outp,
+        '--pages',
+        '1',
+      ]);
+      expect(manyCode).toBe(1);
+      expect(errors.join('\n')).toContain('more than one PDF');
+
+      errors.length = 0;
+      const splitCode = await runCli([
+        '-f',
+        first,
+        '-f',
+        second,
+        '-o',
+        'page-%d.pdf',
+      ]);
+      expect(splitCode).toBe(1);
+      expect(errors.join('\n')).toContain('%d');
+
+      errors.length = 0;
+      const twiceCode = await runCli(['-f', first, '-o', 'page-%d-%d.pdf']);
+      expect(twiceCode).toBe(1);
+      expect(errors.join('\n')).toContain('%d once');
+
+      errors.length = 0;
+      const keepCode = await runCli([
+        '-f',
+        first,
+        '-o',
+        'page-%d.pdf',
+        '--returnOriginalIfLarger',
+      ]);
+      expect(keepCode).toBe(1);
+      expect(errors.join('\n')).toContain('returnOriginalIfLarger');
+      expect(compressMock).not.toHaveBeenCalled();
+      expect(splitMock).not.toHaveBeenCalled();
+    } finally {
+      fs.unlinkSync(first);
+      fs.unlinkSync(second);
     }
   });
 });
