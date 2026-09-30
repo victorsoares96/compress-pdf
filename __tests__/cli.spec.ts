@@ -82,6 +82,7 @@ describe('runCli', () => {
     const code = await runCli(['--help']);
     expect(code).toBe(0);
     expect(logs.join('\n')).toContain('Usage:');
+    expect(logs.join('\n')).toContain('--batch');
     expect(logs.join('\n')).toContain('COMPRESS_PDF_PASSWORD');
     expect(logs.join('\n')).toContain('shell history');
   });
@@ -649,5 +650,209 @@ describe('runCli', () => {
     expect(compressMock).not.toHaveBeenCalled();
     expect(compressStreamMock).not.toHaveBeenCalled();
     expect(splitMock).not.toHaveBeenCalled();
+  });
+
+  it('compresses each PDF in a folder without joining them', async () => {
+    const source = fs.mkdtempSync(path.join(os.tmpdir(), 'compress-batch-in-'));
+    const outDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'compress-batch-out-')
+    );
+    fs.writeFileSync(path.join(source, 'b.pdf'), '%PDF-b');
+    fs.writeFileSync(path.join(source, 'a.PDF'), '%PDF-a');
+    fs.writeFileSync(path.join(source, 'notes.txt'), 'nope');
+    fs.mkdirSync(path.join(source, 'nested'));
+    fs.writeFileSync(path.join(source, 'nested', 'c.pdf'), '%PDF-c');
+    fs.mkdirSync(path.join(source, 'fake.pdf'));
+    compressMock.mockImplementation(async (file, options) => {
+      const outputPath = (options as { output?: string }).output;
+      if (outputPath === undefined) {
+        throw new Error('missing output');
+      }
+      return stubFileResult(
+        outputPath,
+        Buffer.from(`out-${path.basename(String(file))}`)
+      ) as never;
+    });
+
+    try {
+      const code = await runCli([
+        '--batch',
+        source,
+        '-o',
+        outDir,
+        '-r',
+        'ebook',
+      ]);
+      expect(code).toBe(0);
+      expect(compressMock).toHaveBeenCalledTimes(2);
+      expect(compressMock).toHaveBeenNthCalledWith(
+        1,
+        path.join(source, 'a.PDF'),
+        expect.objectContaining({
+          resolution: 'ebook',
+          output: path.join(outDir, 'a.PDF'),
+        })
+      );
+      expect(compressMock).toHaveBeenNthCalledWith(
+        2,
+        path.join(source, 'b.pdf'),
+        expect.objectContaining({
+          output: path.join(outDir, 'b.pdf'),
+        })
+      );
+      expect(fs.readFileSync(path.join(outDir, 'a.PDF')).toString()).toBe(
+        'out-a.PDF'
+      );
+      expect(logs.join('\n')).toContain('a.PDF');
+      expect(logs.join('\n')).toContain('b.pdf');
+      expect(splitMock).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(source, { recursive: true, force: true });
+      fs.rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it('creates the batch output directory and keeps going after one failure', async () => {
+    const source = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'compress-batch-keep-')
+    );
+    const parent = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'compress-batch-parent-')
+    );
+    const outDir = path.join(parent, 'out');
+    fs.writeFileSync(path.join(source, 'a.pdf'), '%PDF-a');
+    fs.writeFileSync(path.join(source, 'bad.pdf'), '%PDF-bad');
+    fs.writeFileSync(path.join(source, 'c.pdf'), '%PDF-c');
+    compressMock.mockImplementation(async (file, options) => {
+      const name = path.basename(String(file));
+      if (name === 'bad.pdf') {
+        throw new Error('ghostscript vanished');
+      }
+      const outputPath = (options as { output?: string }).output;
+      if (outputPath === undefined) {
+        throw new Error('missing output');
+      }
+      return stubFileResult(outputPath, Buffer.from('ok')) as never;
+    });
+
+    try {
+      const code = await runCli([
+        '--batch',
+        source,
+        '-o',
+        outDir,
+        '-r',
+        'auto',
+        '--pages',
+        '1-2',
+        '--returnOriginalIfLarger',
+      ]);
+      expect(code).toBe(1);
+      expect(fs.statSync(outDir).isDirectory()).toBe(true);
+      expect(compressMock).toHaveBeenCalledTimes(3);
+      expect(compressMock).toHaveBeenNthCalledWith(
+        1,
+        path.join(source, 'a.pdf'),
+        expect.objectContaining({
+          resolution: 'auto',
+          pages: '1-2',
+          returnOriginalIfLarger: true,
+          output: path.join(outDir, 'a.pdf'),
+        })
+      );
+      expect(compressMock).toHaveBeenNthCalledWith(
+        3,
+        path.join(source, 'c.pdf'),
+        expect.objectContaining({
+          output: path.join(outDir, 'c.pdf'),
+        })
+      );
+      expect(fs.existsSync(path.join(outDir, 'a.pdf'))).toBe(true);
+      expect(fs.existsSync(path.join(outDir, 'c.pdf'))).toBe(true);
+      expect(fs.existsSync(path.join(outDir, 'bad.pdf'))).toBe(false);
+      expect(errors.join('\n')).toContain('bad.pdf');
+      expect(errors.join('\n')).toContain('ghostscript vanished');
+      expect(logs.join('\n')).toContain('a.pdf');
+      expect(logs.join('\n')).toContain('c.pdf');
+    } finally {
+      fs.rmSync(source, { recursive: true, force: true });
+      fs.rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a batch that would join, split, or overwrite', async () => {
+    const source = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'compress-batch-reject-')
+    );
+    const outDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'compress-batch-reject-out-')
+    );
+    const empty = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'compress-batch-empty-')
+    );
+    const pdf = path.join(source, 'a.pdf');
+    const fileOut = path.join(outDir, 'file.pdf');
+    fs.writeFileSync(pdf, '%PDF');
+    fs.writeFileSync(fileOut, 'x');
+    fs.writeFileSync(path.join(empty, 'notes.txt'), 'nope');
+
+    const cases: { args: string[]; text: string }[] = [
+      {
+        args: ['--batch', source, '-f', pdf, '-o', outDir],
+        text: '--file',
+      },
+      {
+        args: ['--batch', source],
+        text: '--output is required',
+      },
+      {
+        args: ['--batch', source, '-o', '-'],
+        text: 'stdout',
+      },
+      {
+        args: ['--batch', source, '-o', path.join(outDir, 'page-%d.pdf')],
+        text: '%d',
+      },
+      {
+        args: ['--batch', source, '-o', fileOut],
+        text: '--output must be a directory',
+      },
+      {
+        args: ['--batch', source, '-o', source],
+        text: 'different directory',
+      },
+      {
+        args: ['--batch', empty, '-o', outDir],
+        text: 'no PDF',
+      },
+      {
+        args: ['--batch', pdf, '-o', outDir],
+        text: '--batch must be a directory',
+      },
+      {
+        args: ['--batch', source, '-o', outDir, '--pages', '0'],
+        text: 'pages must be a list',
+      },
+      {
+        args: ['--batch', source, '-o', outDir, '-r', 'print'],
+        text: 'Invalid resolution',
+      },
+    ];
+
+    try {
+      await cases.reduce(async (previous, item) => {
+        await previous;
+        errors.length = 0;
+        compressMock.mockClear();
+        const code = await runCli(item.args);
+        expect(code).toBe(1);
+        expect(errors.join('\n')).toContain(item.text);
+        expect(compressMock).not.toHaveBeenCalled();
+      }, Promise.resolve());
+    } finally {
+      fs.rmSync(source, { recursive: true, force: true });
+      fs.rmSync(outDir, { recursive: true, force: true });
+      fs.rmSync(empty, { recursive: true, force: true });
+    }
   });
 });

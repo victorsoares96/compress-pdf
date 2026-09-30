@@ -156,6 +156,7 @@ Required:
   -o, --output <path>           Use %d to write one file per page, or - for stdout
 
 Options:
+  --batch <directory>           Compress each PDF in that folder, without joining
   -r, --resolution <preset>     screen | ebook | printer | prepress | default | auto (default: ebook)
   --pages <list>                Pages to keep, such as 1-3,5
   --compatibilityLevel <n>      PDF compatibility level (default: 1.4)
@@ -176,6 +177,8 @@ Options:
 ```
 
 An unknown flag exits with code 1 and prints the error plus the help text. A resolution outside the list above is rejected before compression starts. `-r auto` is accepted. `--pages` uses the same page list as `pages`. Repeating `-f` joins files. An `-o` path that contains `%d` splits into one file per page. `-f -` reads stdin once. `-o -` writes the PDF to stdout and the summary to stderr. A library `output` of `'-'` is still a file named `-`.
+
+`--batch <directory>` compresses each PDF in that folder, not in subfolders, and does not join them. `-o` must be a different directory. Each result keeps the original file name. One bad file does not stop the others. The command exits 1 if any file failed. `--batch` cannot be combined with `-f`, with `-o -`, or with `%d` in `-o`.
 
 ### Usage with Docker
 
