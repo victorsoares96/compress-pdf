@@ -1,3 +1,18 @@
+import type { Readable } from 'node:stream';
+import type { ReadableStream as WebReadableStream } from 'node:stream/web';
+
+/**
+ * Where a PDF can come from.
+ * A stream is read to the end before Ghostscript runs.
+ */
+export type PdfSource =
+  | string
+  | Buffer
+  | Uint8Array
+  | ArrayBuffer
+  | Readable
+  | WebReadableStream<Uint8Array>;
+
 export const VALID_RESOLUTIONS = [
   'screen',
   'ebook',
