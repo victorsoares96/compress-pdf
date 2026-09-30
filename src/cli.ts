@@ -9,6 +9,7 @@ import {
   type ResolutionSetting,
 } from './types';
 import { isPdfaLevel } from './pdfa';
+import { assertJpegQuality } from './jpeg';
 
 export const helpText = `
 compress-pdf - Compress PDF files using Ghostscript
@@ -26,6 +27,7 @@ Options:
   --compatibilityLevel <n>   PDF compatibility level (default: 1.4)
   --pdfa <level>             Write PDF/A in the same pass: 1b, 2b, or 3b
   --imageQuality <n>         Image resolution/quality in DPI, 1-600 (default: 100)
+  --jpegQuality <1-100>      JPEG quality for color and gray photos
   --gsModule <path>          Custom Ghostscript binary path
   --pdfPassword <pass>       Password for protected PDFs.
                              Stored in shell history; prefer COMPRESS_PDF_PASSWORD
@@ -48,6 +50,7 @@ Examples:
   npx compress-pdf -f input.pdf -o output.pdf
   npx compress-pdf -f input.pdf -o output.pdf -r screen
   npx compress-pdf -f input.pdf -o output.pdf --imageQuality 72
+  npx compress-pdf -f input.pdf -o output.pdf --jpegQuality 60
   npx compress-pdf -f protected.pdf -o output.pdf --pdfPassword mypass
   npx compress-pdf -f input.pdf -o output.pdf --stripMetadata
   npx compress-pdf -f input.pdf -o output.pdf --title "Report" --author "Ada"
@@ -86,6 +89,7 @@ const cliOptions = {
   compatibilityLevel: { type: 'string' },
   pdfa: { type: 'string' },
   imageQuality: { type: 'string' },
+  jpegQuality: { type: 'string' },
   gsModule: { type: 'string' },
   pdfPassword: { type: 'string' },
   removePasswordAfterCompression: { type: 'boolean', default: false },
@@ -133,6 +137,7 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
   const compatibilityLevel = getStringValue(values.compatibilityLevel);
   const pdfa = getStringValue(values.pdfa);
   const imageQuality = getStringValue(values.imageQuality);
+  const jpegQualityText = getStringValue(values.jpegQuality);
   const gsModule = getStringValue(values.gsModule);
   const targetSize = getStringValue(values.targetSize);
   const pdfPassword =
@@ -153,6 +158,18 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
   if (pdfa !== undefined && !isPdfaLevel(pdfa)) {
     console.error(`Error: Invalid pdfa "${pdfa}". Must be one of: 1b, 2b, 3b`);
     return 1;
+  }
+
+  let jpegQuality: number | undefined;
+  if (jpegQualityText !== undefined) {
+    jpegQuality = Number(jpegQualityText);
+    try {
+      assertJpegQuality(jpegQuality);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error: ${message}\n\n${helpText}`);
+      return 1;
+    }
   }
 
   if (
@@ -176,6 +193,7 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
         : undefined,
       pdfa: pdfa as PdfaLevel | undefined,
       imageQuality: imageQuality ? Number(imageQuality) : undefined,
+      jpegQuality,
       gsModule,
       pdfPassword,
       removePasswordAfterCompression:

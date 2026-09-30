@@ -94,6 +94,7 @@ const result = await compress(pdf, {
 | `compatibilityLevel`             | PDF compatibility level from `1.0` to `2.0`. Default is `1.4`. With `pdfa`, an omitted level becomes `1.4` for `1b` and `1.7` for `2b` or `3b`.                                 |
 | `pdfa`                           | `1b`, `2b`, or `3b`. Omitted by default. Writes a PDF/A file in the same pass, converting color to RGB. Features that cannot be kept are dropped. The PDF/A identification stays. |
 | `imageQuality`                   | Image resolution in DPI, from `1` to `600`. Default is `100`.                                                                                                                    |
+| `jpegQuality`                    | JPEG quality for color and gray photos, from `1` to `100`. `100` keeps the most detail. Omitted by default. When set, those photos are stored as JPEG. Black-and-white images stay on fax compression. |
 | `gsModule`                       | Path to the Ghostscript binary, such as `/usr/bin/gs`.                                                                                                                           |
 | `pdfPassword`                    | Password for a protected PDF.                                                                                                                                                    |
 | `removePasswordAfterCompression` | Drop password protection from the compressed file.                                                                                                                               |
@@ -139,6 +140,7 @@ Options:
   --compatibilityLevel <n>      PDF compatibility level (default: 1.4)
   --pdfa <level>                Write PDF/A in the same pass: 1b, 2b, or 3b
   --imageQuality <n>            Image resolution in DPI, 1-600 (default: 100)
+  --jpegQuality <1-100>         JPEG quality for color and gray photos
   --gsModule <path>             Ghostscript binary, for example /usr/bin/gs
   --pdfPassword <pass>          Password for a protected PDF. Prefer COMPRESS_PDF_PASSWORD
   --removePasswordAfterCompression
