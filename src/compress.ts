@@ -7,6 +7,7 @@ import { randomUUID } from 'crypto';
 import getBinPath from './get-bin-path';
 import analyze, { presetForKind } from './analyze';
 import { assertMetadata, buildDocinfoProgram } from './metadata';
+import { assertJpegQuality, buildJpegProgram } from './jpeg';
 import {
   assertPdfa,
   buildPdfaDefinition,
@@ -50,6 +51,7 @@ const defaultOptions: Required<
     | 'resolution'
     | 'setMetadata'
     | 'pdfa'
+    | 'jpegQuality'
   >
 > & { resolution: Resolution } = {
   compatibilityLevel: 1.4,
@@ -73,6 +75,7 @@ type ResolvedOptions = Required<
     | 'resolution'
     | 'setMetadata'
     | 'pdfa'
+    | 'jpegQuality'
   >
 > & {
   gsModule: string;
@@ -82,6 +85,7 @@ type ResolvedOptions = Required<
   targetSize?: number;
   setMetadata?: PdfMetadata;
   pdfa?: PdfaLevel;
+  jpegQuality?: number;
 };
 
 type AttemptSettings = {
@@ -158,6 +162,7 @@ function validateOptions(opts: ResolvedOptions): void {
   }
 
   assertMetadata(opts.setMetadata);
+  assertJpegQuality(opts.jpegQuality);
 }
 
 /**
@@ -178,6 +183,7 @@ function buildGsArgs(options: {
   setMetadata?: PdfMetadata;
   pdfa?: PdfaLevel;
   pdfaDefinition?: string;
+  jpegQuality?: number;
 }): string[] {
   const args: string[] = [
     '-q',
@@ -204,6 +210,10 @@ function buildGsArgs(options: {
     args.push(...pdfaFlags(options.pdfa));
   }
 
+  if (options.jpegQuality !== undefined) {
+    args.push('-dPassThroughJPEGImages=false');
+  }
+
   if (options.pdfPassword) {
     args.push(`-sPDFPassword=${options.pdfPassword}`);
   }
@@ -220,11 +230,19 @@ function buildGsArgs(options: {
     sanitize: options.sanitize,
     setMetadata: options.setMetadata,
   });
+  const jpegProgram =
+    options.jpegQuality !== undefined
+      ? buildJpegProgram(options.jpegQuality)
+      : undefined;
+  if (jpegProgram) {
+    args.push('-c', jpegProgram, '-f');
+  }
   if (options.pdfaDefinition) {
     args.push(options.pdfaDefinition);
   }
   if (docinfo) {
-    args.push('-f', options.inputFile, '-c', docinfo);
+    if (!jpegProgram) args.push('-f');
+    args.push(options.inputFile, '-c', docinfo);
   } else {
     args.push(options.inputFile);
   }
@@ -431,6 +449,7 @@ async function compress(
     sanitize,
     setMetadata,
     pdfa,
+    jpegQuality,
   } = mergedOptions;
 
   // Validate that source file exists (when path is provided)
@@ -520,6 +539,7 @@ async function compress(
         setMetadata,
         pdfa,
         pdfaDefinition,
+        jpegQuality,
       });
 
       let size: number;

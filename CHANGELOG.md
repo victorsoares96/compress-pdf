@@ -4,6 +4,7 @@
 
 ### ✨ New Features
 
+- `jpegQuality` sets how hard color and gray photos are squeezed, from `1` to `100`. Omitted by default, so the preset keeps Ghostscript's own JPEG factor. `100` keeps the most detail. Photos already stored as JPEG are compressed again. Black-and-white images stay on fax compression. The CLI flag is `--jpegQuality <1-100>`.
 - `pdfa` writes a PDF/A-1b, PDF/A-2b, or PDF/A-3b file in the same Ghostscript pass. Omitted by default. `1b` uses PDF 1.4 and `2b` / `3b` use PDF 1.7. Color is converted to RGB. The CLI flag is `--pdfa <1b|2b|3b>`.
 - `stripMetadata` clears title, author, subject, keywords, and creator on the compressed PDF. `setMetadata` writes the fields you pass. `sanitize` clears that info, and Ghostscript rebuilds the extra metadata block from the cleared values. All three default to off. Ghostscript still writes its own producer and dates.
 - `analyze(file)` reports pages, images, the highest image DPI, fonts, and whether the PDF looks scanned, vector, or mixed. `resolution: 'auto'` picks `screen`, `ebook`, or `printer` from that. The CLI accepts `-r auto`.

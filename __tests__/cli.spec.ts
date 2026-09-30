@@ -126,6 +126,7 @@ describe('runCli', () => {
         resolution: 'screen',
         compatibilityLevel: undefined,
         imageQuality: undefined,
+        jpegQuality: undefined,
         gsModule: undefined,
         pdfPassword: undefined,
         removePasswordAfterCompression: false,
@@ -182,6 +183,7 @@ describe('runCli', () => {
         resolution: undefined,
         compatibilityLevel: 1.4,
         imageQuality: 144,
+        jpegQuality: undefined,
         gsModule: '/custom/gs',
         pdfPassword: 'secret',
         removePasswordAfterCompression: true,
@@ -379,6 +381,52 @@ describe('runCli', () => {
       expect(code).toBe(1);
       expect(compressMock).not.toHaveBeenCalled();
       expect(errors.join('\n')).toContain('Invalid pdfa');
+      expect(fs.existsSync(outp)).toBe(false);
+    } finally {
+      fs.unlinkSync(pdf);
+    }
+  });
+
+  it('maps --jpegQuality into compress options', async () => {
+    const pdf = path.join(os.tmpdir(), `compress-cli-jpeg-${process.pid}.pdf`);
+    const outp = path.join(
+      os.tmpdir(),
+      `compress-cli-jpeg-out-${process.pid}.pdf`
+    );
+    fs.writeFileSync(pdf, '%PDF');
+    compressMock.mockResolvedValue(
+      stubFileResult(outp, Buffer.from('x'), false) as never
+    );
+
+    try {
+      const code = await runCli(['-f', pdf, '-o', outp, '--jpegQuality', '60']);
+      expect(code).toBe(0);
+      expect(compressMock).toHaveBeenCalledWith(
+        pdf,
+        expect.objectContaining({ jpegQuality: 60, output: outp })
+      );
+    } finally {
+      fs.unlinkSync(pdf);
+      if (fs.existsSync(outp)) fs.unlinkSync(outp);
+    }
+  });
+
+  it('exits 1 before compressing when jpegQuality is not an integer from 1 to 100', async () => {
+    const pdf = path.join(
+      os.tmpdir(),
+      `compress-cli-jpeg-bad-${process.pid}.pdf`
+    );
+    const outp = path.join(
+      os.tmpdir(),
+      `compress-cli-jpeg-bad-out-${process.pid}.pdf`
+    );
+    fs.writeFileSync(pdf, '%PDF');
+
+    try {
+      const code = await runCli(['-f', pdf, '-o', outp, '--jpegQuality', '0']);
+      expect(code).toBe(1);
+      expect(compressMock).not.toHaveBeenCalled();
+      expect(errors.join('\n')).toContain('jpegQuality must be an integer');
       expect(fs.existsSync(outp)).toBe(false);
     } finally {
       fs.unlinkSync(pdf);
