@@ -509,6 +509,21 @@ describe('runCli', () => {
         pdf,
         expect.objectContaining({ pages: '1', output: outp })
       );
+
+      splitMock.mockClear();
+      const parallel = await runCli([
+        '-f',
+        pdf,
+        '-o',
+        outp,
+        '--concurrency',
+        '2',
+      ]);
+      expect(parallel).toBe(0);
+      expect(splitMock).toHaveBeenCalledWith(
+        pdf,
+        expect.objectContaining({ concurrency: 2, output: outp })
+      );
       expect(compressMock).not.toHaveBeenCalled();
       expect(logs.join('\n')).toContain('PDF split successfully');
     } finally {
@@ -575,6 +590,44 @@ describe('runCli', () => {
       ]);
       expect(keepCode).toBe(1);
       expect(errors.join('\n')).toContain('returnOriginalIfLarger');
+
+      errors.length = 0;
+      const concurrencyCode = await runCli([
+        '-f',
+        first,
+        '-o',
+        outp,
+        '--concurrency',
+        '2',
+      ]);
+      expect(concurrencyCode).toBe(1);
+      expect(errors.join('\n')).toContain(
+        'concurrency can only be used when splitting'
+      );
+
+      errors.length = 0;
+      const zeroCode = await runCli([
+        '-f',
+        first,
+        '-o',
+        'page-%d.pdf',
+        '--concurrency',
+        '0',
+      ]);
+      expect(zeroCode).toBe(1);
+      expect(errors.join('\n')).toContain('positive integer');
+
+      errors.length = 0;
+      const batchCode = await runCli([
+        '--batch',
+        os.tmpdir(),
+        '-o',
+        os.tmpdir(),
+        '--concurrency',
+        '2',
+      ]);
+      expect(batchCode).toBe(1);
+      expect(errors.join('\n')).toContain('cannot be used with --batch');
       expect(compressMock).not.toHaveBeenCalled();
       expect(splitMock).not.toHaveBeenCalled();
     } finally {

@@ -31,6 +31,8 @@ Options:
   -r, --resolution <preset>  screen | ebook | printer | prepress | default | auto
                              (default: ebook). auto picks screen, ebook, or printer
   --pages <list>             Pages to keep, such as 1-3,5
+  --concurrency <n>          Pages to compress at once when -o contains %d.
+                             Default is the CPU count, capped at 4
   --compatibilityLevel <n>   PDF compatibility level (default: 1.4)
   --pdfa <level>             Write PDF/A in the same pass: 1b, 2b, or 3b
   --imageQuality <n>         Image resolution/quality in DPI, 1-600 (default: 100)
@@ -101,6 +103,7 @@ function metadataFromFlags(values: {
 const cliOptions = {
   file: { type: 'string', short: 'f', multiple: true },
   pages: { type: 'string' },
+  concurrency: { type: 'string' },
   output: { type: 'string', short: 'o' },
   resolution: { type: 'string', short: 'r' },
   compatibilityLevel: { type: 'string' },
@@ -335,6 +338,7 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
   const gsModule = getStringValue(values.gsModule);
   const targetSize = getStringValue(values.targetSize);
   const pagesText = getStringValue(values.pages);
+  const concurrencyText = getStringValue(values.concurrency);
   const pdfPassword =
     getStringValue(values.pdfPassword) ?? process.env.COMPRESS_PDF_PASSWORD;
   const batch = getStringValue(values.batch);
@@ -356,6 +360,9 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
   });
 
   if (batch !== undefined) {
+    if (concurrencyText !== undefined) {
+      return batchUsage('Error: concurrency cannot be used with --batch');
+    }
     return startBatch({
       directory: batch,
       files,
@@ -421,6 +428,23 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
     );
     return 1;
   }
+  if (concurrencyText !== undefined && !splitting) {
+    console.error(
+      `Error: concurrency can only be used when splitting a PDF\n\n${helpText}`
+    );
+    return 1;
+  }
+  const concurrency =
+    concurrencyText === undefined ? undefined : Number(concurrencyText);
+  if (
+    concurrency !== undefined &&
+    (!Number.isInteger(concurrency) || concurrency < 1)
+  ) {
+    console.error(
+      `Error: concurrency must be a positive integer, got ${concurrencyText}\n\n${helpText}`
+    );
+    return 1;
+  }
 
   const shared = {
     ...options,
@@ -436,6 +460,7 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
       const result = await split(files[0] === '-' ? process.stdin : files[0], {
         ...shared,
         output,
+        ...(concurrency !== undefined ? { concurrency } : {}),
       });
       console.log('✅ PDF split successfully!');
       console.log(`   ${result.files.length} files`);

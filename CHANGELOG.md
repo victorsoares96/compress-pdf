@@ -4,6 +4,7 @@
 
 ### ✨ New Features
 
+- `split` compresses pages at the same time. `concurrency` sets how many Ghostscript processes run at once. The default is the CPU count, capped at 4. `1` runs one page at a time. The returned paths stay in the requested order. If one page fails, the others stop and every file from that split is removed. The CLI flag is `--concurrency <n>`, and it is accepted only when `-o` contains `%d`.
 - `compress-pdf/express`, `compress-pdf/fastify`, and `compress-pdf/next` compress an `application/pdf` request and send the PDF back. The main import does not load those frameworks. `output` is rejected. Cancelling the request aborts Ghostscript. Express uses the `express.raw` limit. Fastify uses the route `bodyLimit`. Next.js defaults to 20 MiB.
 - `--batch <directory>` compresses each PDF in that folder on its own, without joining and without entering subfolders. `-o` is a different directory, and each result keeps the original file name. One bad file does not stop the others. The command exits 1 if any file failed.
 - `compress` accepts a `Uint8Array`, an `ArrayBuffer`, or a stream, and reads it fully before Ghostscript. `compressStream` returns the finished PDF as a stream after Ghostscript finishes, and rejects `output`. The CLI accepts `-f -` for stdin and `-o -` for stdout. The summary for stdout is written to stderr.
