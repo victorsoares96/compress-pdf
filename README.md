@@ -180,6 +180,37 @@ An unknown flag exits with code 1 and prints the error plus the help text. A res
 
 `--batch <directory>` compresses each PDF in that folder, not in subfolders, and does not join them. `-o` must be a different directory. Each result keeps the original file name. One bad file does not stop the others. The command exits 1 if any file failed. `--batch` cannot be combined with `-f`, with `-o -`, or with `%d` in `-o`.
 
+### HTTP adapters
+
+Express, Fastify, and Next.js each have a handler that calls `compress` and returns the smaller PDF. Install only the framework the app already uses. Importing `compress-pdf` does not load them. The request body is the PDF (`Content-Type: application/pdf`). The response is the compressed PDF, with `X-Original-Size`, `X-Compressed-Size`, and `X-Compression-Ratio`. `output` is rejected. Cancelling the request aborts Ghostscript. The framework's own body limit is the size limit.
+
+```ts
+import express from 'express';
+import { compressPdf } from 'compress-pdf/express';
+
+app.post(
+  '/compress',
+  express.raw({ type: 'application/pdf', limit: '20mb' }),
+  compressPdf({ resolution: 'ebook' })
+);
+```
+
+```ts
+import { compressPdf } from 'compress-pdf/fastify';
+
+app.post('/compress', compressPdf({ resolution: 'ebook' }));
+```
+
+Fastify registers an `application/pdf` parser when the app does not already have one.
+
+```ts
+import { compressPdf } from 'compress-pdf/next';
+
+export const POST = compressPdf({ resolution: 'ebook' });
+```
+
+The Next.js handler is for the App Router.
+
 ### Usage with Docker
 
 **Option 1: Using Automatic Binary Download (Recommended)**

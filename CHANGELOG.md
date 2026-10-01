@@ -4,6 +4,7 @@
 
 ### ✨ New Features
 
+- `compress-pdf/express`, `compress-pdf/fastify`, and `compress-pdf/next` compress an `application/pdf` request and send the PDF back. The main import does not load those frameworks. `output` is rejected. Cancelling the request aborts Ghostscript.
 - `--batch <directory>` compresses each PDF in that folder on its own, without joining and without entering subfolders. `-o` is a different directory, and each result keeps the original file name. One bad file does not stop the others. The command exits 1 if any file failed.
 - `compress` accepts a `Uint8Array`, an `ArrayBuffer`, or a stream, and reads it fully before Ghostscript. `compressStream` returns the finished PDF as a stream after Ghostscript finishes, and rejects `output`. The CLI accepts `-f -` for stdin and `-o -` for stdout. The summary for stdout is written to stderr.
 - `pages` keeps the pages you list, numbered from 1, such as `1-3,5`. A backwards range such as `5-1` stays in that order. `compress([a, b])` joins files in that order. `split` writes one file per page when the output path contains `%d`. The CLI flags are `--pages`, repeated `-f`, and an `-o` path with `%d`.
