@@ -19,6 +19,21 @@
       "types": "./package.json",
       "import": "./package.json",
       "require": "./package.json"
+    },
+    "./express": {
+      "types": "./dist/express.d.ts",
+      "import": "./dist/express.mjs",
+      "require": "./dist/express.js"
+    },
+    "./fastify": {
+      "types": "./dist/fastify.d.ts",
+      "import": "./dist/fastify.mjs",
+      "require": "./dist/fastify.js"
+    },
+    "./next": {
+      "types": "./dist/next.d.ts",
+      "import": "./dist/next.mjs",
+      "require": "./dist/next.js"
     }
   },
   "scripts": {

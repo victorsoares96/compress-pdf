@@ -88,24 +88,24 @@ const result = await compress(pdf, {
 });
 ```
 
-| Option                           | Description                                                                                                                                                                      |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolution`                     | `screen`, `ebook`, `printer`, `prepress`, `default`, or `auto`. Default is `ebook`. `auto` picks a preset from `analyze`.                                                        |
-| `compatibilityLevel`             | PDF compatibility level from `1.0` to `2.0`. Default is `1.4`. With `pdfa`, an omitted level becomes `1.4` for `1b` and `1.7` for `2b` or `3b`.                                 |
+| Option                           | Description                                                                                                                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolution`                     | `screen`, `ebook`, `printer`, `prepress`, `default`, or `auto`. Default is `ebook`. `auto` picks a preset from `analyze`.                                                         |
+| `compatibilityLevel`             | PDF compatibility level from `1.0` to `2.0`. Default is `1.4`. With `pdfa`, an omitted level becomes `1.4` for `1b` and `1.7` for `2b` or `3b`.                                   |
 | `pdfa`                           | `1b`, `2b`, or `3b`. Omitted by default. Writes a PDF/A file in the same pass, converting color to RGB. Features that cannot be kept are dropped. The PDF/A identification stays. |
-| `imageQuality`                   | Image resolution in DPI, from `1` to `600`. Default is `100`.                                                                                                                    |
-| `gsModule`                       | Path to the Ghostscript binary, such as `/usr/bin/gs`.                                                                                                                           |
-| `pdfPassword`                    | Password for a protected PDF.                                                                                                                                                    |
-| `removePasswordAfterCompression` | Drop password protection from the compressed file.                                                                                                                               |
-| `timeout`                        | How long to wait for Ghostscript, in milliseconds. Default is `120000` (2 minutes).                                                                                              |
-| `signal`                         | `AbortSignal` that cancels the Ghostscript process.                                                                                                                              |
-| `returnOriginalIfLarger`         | When `true`, keep the original PDF if Ghostscript output is not smaller. Default is `false`.                                                                                     |
-| `output`                         | Path to write the compressed PDF. When set, Ghostscript writes there and the return value is metadata plus that absolute path.                                                   |
-| `targetSize`                     | Max size in bytes. Tries up to 6 milder preset/DPI settings and returns the first result that fits, or the smallest attempt if none fit.                                         |
-| `stripMetadata`                  | When `true`, clear title, author, subject, keywords, and creator. Default is `false`. Ghostscript still writes its own producer and dates.                                       |
-| `setMetadata`                    | Set `title`, `author`, `subject`, and `keywords`. With `stripMetadata` or `sanitize`, fields you omit are cleared.                                                               |
-| `sanitize`                       | When `true`, clear the same document info. Ghostscript then rebuilds the extra metadata block from those cleared values. Links, forms, and annotations stay. Default is `false`. |
-| `pages`                          | Pages to keep, numbered from 1, such as `1-3,5`. Omitted by default, so the whole PDF is compressed. `5-1` stays backwards. A page past the end is rejected.                          |
+| `imageQuality`                   | Image resolution in DPI, from `1` to `600`. Default is `100`.                                                                                                                     |
+| `gsModule`                       | Path to the Ghostscript binary, such as `/usr/bin/gs`.                                                                                                                            |
+| `pdfPassword`                    | Password for a protected PDF.                                                                                                                                                     |
+| `removePasswordAfterCompression` | Drop password protection from the compressed file.                                                                                                                                |
+| `timeout`                        | How long to wait for Ghostscript, in milliseconds. Default is `120000` (2 minutes).                                                                                               |
+| `signal`                         | `AbortSignal` that cancels the Ghostscript process.                                                                                                                               |
+| `returnOriginalIfLarger`         | When `true`, keep the original PDF if Ghostscript output is not smaller. Default is `false`.                                                                                      |
+| `output`                         | Path to write the compressed PDF. When set, Ghostscript writes there and the return value is metadata plus that absolute path.                                                    |
+| `targetSize`                     | Max size in bytes. Tries up to 6 milder preset/DPI settings and returns the first result that fits, or the smallest attempt if none fit.                                          |
+| `stripMetadata`                  | When `true`, clear title, author, subject, keywords, and creator. Default is `false`. Ghostscript still writes its own producer and dates.                                        |
+| `setMetadata`                    | Set `title`, `author`, `subject`, and `keywords`. With `stripMetadata` or `sanitize`, fields you omit are cleared.                                                                |
+| `sanitize`                       | When `true`, clear the same document info. Ghostscript then rebuilds the extra metadata block from those cleared values. Links, forms, and annotations stay. Default is `false`.  |
+| `pages`                          | Pages to keep, numbered from 1, such as `1-3,5`. Omitted by default, so the whole PDF is compressed. `5-1` stays backwards. A page past the end is rejected.                      |
 
 `analyze(file)` reads the PDF and returns pages, images, the highest image DPI, fonts, and a kind:
 
@@ -179,6 +179,47 @@ Options:
 An unknown flag exits with code 1 and prints the error plus the help text. A resolution outside the list above is rejected before compression starts. `-r auto` is accepted. `--pages` uses the same page list as `pages`. Repeating `-f` joins files. An `-o` path that contains `%d` splits into one file per page. `-f -` reads stdin once. `-o -` writes the PDF to stdout and the summary to stderr. A library `output` of `'-'` is still a file named `-`.
 
 `--batch <directory>` compresses each PDF in that folder, not in subfolders, and does not join them. `-o` must be a different directory. Each result keeps the original file name. One bad file does not stop the others. The command exits 1 if any file failed. `--batch` cannot be combined with `-f`, with `-o -`, or with `%d` in `-o`.
+
+### HTTP adapters
+
+Express, Fastify, and Next.js each have a handler that calls `compress` and returns the smaller PDF. Install only the framework the app already uses. Importing `compress-pdf` does not load them. The request body is the PDF (`Content-Type: application/pdf`). The response is the compressed PDF, with `X-Original-Size`, `X-Compressed-Size`, and `X-Compression-Ratio`. `output` is rejected. Cancelling the request aborts Ghostscript. A Ghostscript error returns 500 with the message, without a stack or a filesystem path.
+
+Express uses the limit on `express.raw`. Fastify uses the route `bodyLimit`, or the limit passed to `Fastify()` when the route omits it. `compressPdf({ bodyLimit })` sets that route limit. Next.js reads at most `bodyLimit` bytes and returns 413 past that. The Next.js default is 20 MiB.
+
+```ts
+import express from 'express';
+import { compressPdf } from 'compress-pdf/express';
+
+const app = express();
+
+app.post(
+  '/compress',
+  express.raw({ type: 'application/pdf', limit: '20mb' }),
+  compressPdf({ resolution: 'ebook' })
+);
+```
+
+```ts
+import Fastify from 'fastify';
+import { compressPdf } from 'compress-pdf/fastify';
+
+const app = Fastify();
+
+app.post(
+  '/compress',
+  compressPdf({ resolution: 'ebook', bodyLimit: 20 * 1024 * 1024 })
+);
+```
+
+Fastify registers an `application/pdf` parser when the app does not already have one. The parser runs for routes created with `compressPdf`. Another route in that app still receives 415 for `application/pdf`.
+
+```ts
+import { compressPdf } from 'compress-pdf/next';
+
+export const POST = compressPdf({ resolution: 'ebook' });
+```
+
+The Next.js handler is for the App Router. `output` is rejected before the body is read.
 
 ### Usage with Docker
 
