@@ -54,6 +54,80 @@ if (outArg) {
   return bin;
 }
 
+function writeTimedGs(
+  dir: string,
+  options: {
+    pageCount: number;
+    delayMs: number;
+    delayPage?: string;
+    failOnPageList?: string;
+  }
+): string {
+  const bin = path.join(dir, 'fake-gs.js');
+  const log = path.join(dir, 'args.txt');
+  const failCheck = options.failOnPageList
+    ? `if (page === ${JSON.stringify(options.failOnPageList)}) { console.error('fail page'); process.exit(1); }`
+    : '';
+  const delayPage =
+    options.delayPage === undefined
+      ? 'true'
+      : `page === ${JSON.stringify(options.delayPage)}`;
+  fs.writeFileSync(
+    bin,
+    `#!/usr/bin/env node
+const fs = require('fs');
+const path = require('path');
+const args = process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(log)}, args.join('\\n') + '\\n---\\n');
+if (args.includes('-dPDFINFO')) {
+  console.log('File has ${options.pageCount} pages');
+  process.exit(0);
+}
+const outArg = args.find((arg) => arg.startsWith('-sOutputFile='));
+const pageArg = args.find((arg) => arg.startsWith('-sPageList='));
+const page = pageArg ? pageArg.slice('-sPageList='.length) : '';
+if (outArg) {
+  const stamp = path.join(${JSON.stringify(dir)}, 'stamp-' + page + '.txt');
+  fs.writeFileSync(stamp, 'start ' + Date.now() + '\\n');
+  if (${delayPage}) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${options.delayMs});
+  }
+  ${failCheck}
+  fs.writeFileSync(outArg.slice('-sOutputFile='.length), '%PDF-1.4 fake\\n');
+  fs.appendFileSync(stamp, 'end ' + Date.now() + '\\n');
+}
+`
+  );
+  fs.chmodSync(bin, 0o755);
+  return bin;
+}
+
+async function waitForFile(filePath: string): Promise<void> {
+  let attempt = 0;
+  // Ghostscript writes the stamp only after the page process starts.
+  /* eslint-disable no-await-in-loop */
+  while (attempt < 200 && !fs.existsSync(filePath)) {
+    attempt += 1;
+    await new Promise((resolve) => {
+      setTimeout(resolve, 15);
+    });
+  }
+  /* eslint-enable no-await-in-loop */
+  if (!fs.existsSync(filePath)) {
+    throw new Error('timed out waiting for Ghostscript to start');
+  }
+}
+
+function readStamp(dir: string, page: string): { start: number; end: number } {
+  const lines = fs
+    .readFileSync(path.join(dir, `stamp-${page}.txt`), 'utf8')
+    .trim()
+    .split('\n');
+  const start = Number(lines[0].slice('start '.length));
+  const end = Number(lines[1].slice('end '.length));
+  return { start, end };
+}
+
 function recordedCalls(dir: string): string[][] {
   const log = path.join(dir, 'args.txt');
   if (!fs.existsSync(log)) return [];
@@ -265,6 +339,7 @@ describe('split', () => {
     const result = await split(pdf, {
       gsModule: bin,
       pages: '2,1',
+      concurrency: 1,
       output: path.join(dir, 'page-%d.pdf'),
     });
 
@@ -337,6 +412,153 @@ describe('split', () => {
     ).rejects.toThrow();
     expect(fs.existsSync(path.join(dir, 'page-1.pdf'))).toBe(false);
     expect(fs.existsSync(path.join(dir, 'page-2.pdf'))).toBe(false);
+  });
+
+  it('compresses pages at the same time and keeps the requested order', async () => {
+    const dir = tempDir();
+    const pdf = writePdf(dir, 'in.pdf');
+    const bin = writeTimedGs(dir, { pageCount: 2, delayMs: 800 });
+
+    const result = await split(pdf, {
+      gsModule: bin,
+      pages: '2,1',
+      concurrency: 2,
+      output: path.join(dir, 'page-%d.pdf'),
+    });
+
+    expect(result.files).toEqual([
+      path.join(dir, 'page-2.pdf'),
+      path.join(dir, 'page-1.pdf'),
+    ]);
+    const first = readStamp(dir, '2');
+    const second = readStamp(dir, '1');
+    expect(Math.max(first.start, second.start)).toBeLessThan(
+      Math.min(first.end, second.end)
+    );
+  });
+
+  it('runs one page at a time when concurrency is 1', async () => {
+    const dir = tempDir();
+    const pdf = writePdf(dir, 'in.pdf');
+    const bin = writeTimedGs(dir, { pageCount: 2, delayMs: 200 });
+
+    await split(pdf, {
+      gsModule: bin,
+      concurrency: 1,
+      output: path.join(dir, 'page-%d.pdf'),
+    });
+
+    const first = readStamp(dir, '1');
+    const second = readStamp(dir, '2');
+    expect(first.end).toBeLessThanOrEqual(second.start);
+  });
+
+  it.skipIf(os.availableParallelism() < 2)(
+    'runs pages together when concurrency is omitted',
+    async () => {
+      const dir = tempDir();
+      const pdf = writePdf(dir, 'in.pdf');
+      const bin = writeTimedGs(dir, { pageCount: 2, delayMs: 800 });
+
+      await split(pdf, {
+        gsModule: bin,
+        output: path.join(dir, 'page-%d.pdf'),
+      });
+
+      const first = readStamp(dir, '1');
+      const second = readStamp(dir, '2');
+      expect(Math.max(first.start, second.start)).toBeLessThan(
+        Math.min(first.end, second.end)
+      );
+    }
+  );
+
+  it('aborts Ghostscript that has already started', async () => {
+    const dir = tempDir();
+    const pdf = writePdf(dir, 'in.pdf');
+    const bin = writeTimedGs(dir, {
+      pageCount: 1,
+      delayMs: 5000,
+      delayPage: '1',
+    });
+    const controller = new AbortController();
+    const stamp = path.join(dir, 'stamp-1.txt');
+    const started = Date.now();
+    const pending = split(pdf, {
+      gsModule: bin,
+      concurrency: 1,
+      output: path.join(dir, 'page-%d.pdf'),
+      signal: controller.signal,
+    });
+    pending.catch(() => undefined);
+
+    await waitForFile(stamp);
+    controller.abort();
+
+    await expect(pending).rejects.toThrow(/aborted/);
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(fs.existsSync(path.join(dir, 'page-1.pdf'))).toBe(false);
+  });
+
+  it('stops the other pages when one fails and keeps that error', async () => {
+    const dir = tempDir();
+    const pdf = writePdf(dir, 'in.pdf');
+    const bin = writeTimedGs(dir, {
+      pageCount: 2,
+      delayMs: 2000,
+      delayPage: '1',
+      failOnPageList: '2',
+    });
+    const started = Date.now();
+
+    await expect(
+      split(pdf, {
+        gsModule: bin,
+        concurrency: 2,
+        output: path.join(dir, 'page-%d.pdf'),
+      })
+    ).rejects.toThrow(/fail page/);
+    expect(Date.now() - started).toBeLessThan(1500);
+    expect(fs.existsSync(path.join(dir, 'page-1.pdf'))).toBe(false);
+    expect(fs.existsSync(path.join(dir, 'page-2.pdf'))).toBe(false);
+  });
+
+  it('rejects concurrency outside 1 to 8 before Ghostscript', async () => {
+    const dir = tempDir();
+    const pdf = writePdf(dir, 'in.pdf');
+    const bin = writeFakeGs(dir, 2);
+    const output = path.join(dir, 'page-%d.pdf');
+
+    await expect(
+      split(pdf, { gsModule: bin, output, concurrency: 0 })
+    ).rejects.toThrow(/from 1 to 8/);
+    await expect(
+      split(pdf, { gsModule: bin, output, concurrency: 1.5 })
+    ).rejects.toThrow(/from 1 to 8/);
+    await expect(
+      split(pdf, { gsModule: bin, output, concurrency: 9 })
+    ).rejects.toThrow(/from 1 to 8/);
+    await expect(
+      split(pdf, { gsModule: bin, output, concurrency: Number.NaN })
+    ).rejects.toThrow(/from 1 to 8/);
+    expect(recordedCalls(dir)).toHaveLength(0);
+  });
+
+  it('rejects an aborted signal before Ghostscript', async () => {
+    const dir = tempDir();
+    const pdf = writePdf(dir, 'in.pdf');
+    const bin = writeFakeGs(dir, 2);
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      split(pdf, {
+        gsModule: bin,
+        output: path.join(dir, 'page-%d.pdf'),
+        signal: controller.signal,
+      })
+    ).rejects.toThrow(/aborted/);
+    expect(recordedCalls(dir)).toHaveLength(0);
   });
 });
 
