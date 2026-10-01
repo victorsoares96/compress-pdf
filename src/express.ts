@@ -1,55 +1,46 @@
-import type { Options } from './types';
-import { compressUpload } from './http-compress';
+import type { UploadOptions } from './types';
+import { compressUpload, trackClose, type CloseSource } from './http-compress';
 
 type ExpressRequest = {
   body?: unknown;
-  on(event: 'aborted' | 'close', listener: () => void): void;
 };
 
-type ExpressResponse = {
+type ExpressResponse = CloseSource & {
   status(code: number): unknown;
   setHeader(name: string, value: string | number): void;
   send(body: Buffer | string): void;
 };
 
-function requestSignal(req: ExpressRequest): {
-  signal: AbortSignal;
-  settle: () => void;
-} {
-  const controller = new AbortController();
-  let settled = false;
-  const abort = (): void => {
-    if (!settled) {
-      controller.abort();
-    }
-  };
-  req.on('aborted', abort);
-  req.on('close', abort);
-  return {
-    signal: controller.signal,
-    settle(): void {
-      settled = true;
-    },
-  };
+function send(
+  res: ExpressResponse,
+  status: number,
+  contentType: string,
+  headers: Record<string, string>,
+  body: Buffer | string
+): void {
+  res.status(status);
+  res.setHeader('Content-Type', contentType);
+  Object.entries(headers).forEach(([name, value]) => {
+    res.setHeader(name, value);
+  });
+  res.send(body);
 }
 
 /**
  * Express handler. The body must already be a Buffer
  * (`express.raw({ type: 'application/pdf' })`).
+ * `express.raw({ limit })` is the size limit while the body is read.
  */
-export function compressPdf(options?: Options) {
+export function compressPdf(options?: UploadOptions) {
   return async function compressPdfRoute(
     req: ExpressRequest,
     res: ExpressResponse
   ): Promise<void> {
-    const request = requestSignal(req);
-    const result = await compressUpload(req.body, options, request.signal);
-    request.settle();
-    res.status(result.status);
-    res.setHeader('Content-Type', result.contentType);
-    Object.entries(result.headers).forEach(([name, value]) => {
-      res.setHeader(name, value);
-    });
-    res.send(result.body);
+    const response = trackClose(res);
+    if (response.closed()) return;
+    const result = await compressUpload(req.body, options, response.signal);
+    response.settle();
+    if (response.closed()) return;
+    send(res, result.status, result.contentType, result.headers, result.body);
   };
 }

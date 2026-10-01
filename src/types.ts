@@ -172,6 +172,17 @@ export type Options = {
 };
 
 /**
+ * Options for an HTTP upload handler.
+ * `bodyLimit` is the maximum request body in bytes.
+ * Fastify uses it as the route limit. Next.js defaults to 20 MiB
+ * when it is omitted. Express still applies the `express.raw` limit
+ * while it reads the body; `bodyLimit` is checked again on that buffer.
+ */
+export type UploadOptions = Options & {
+  bodyLimit?: number;
+};
+
+/**
  * Result of a PDF compression operation.
  */
 export type CompressResult = {
