@@ -9,6 +9,33 @@
   },
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./package.json": {
+      "types": "./package.json",
+      "import": "./package.json",
+      "require": "./package.json"
+    },
+    "./express": {
+      "types": "./dist/express.d.ts",
+      "import": "./dist/express.mjs",
+      "require": "./dist/express.js"
+    },
+    "./fastify": {
+      "types": "./dist/fastify.d.ts",
+      "import": "./dist/fastify.mjs",
+      "require": "./dist/fastify.js"
+    },
+    "./next": {
+      "types": "./dist/next.d.ts",
+      "import": "./dist/next.mjs",
+      "require": "./dist/next.js"
+    }
+  },
   "scripts": {
     "prepare": "husky install",
     "postinstall": "node scripts/install.js",
@@ -60,7 +87,7 @@
     "@types/pdf-parse": "1.1.5",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
-    "@vitest/coverage-istanbul": "3.2.4",
+    "@vitest/coverage-istanbul": "3.2.7",
     "@vitest/eslint-plugin": "1.6.16",
     "commitizen": "4.3.1",
     "commitizen-emoji": "1.0.5",

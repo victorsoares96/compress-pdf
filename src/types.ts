@@ -1,3 +1,18 @@
+import type { Readable } from 'node:stream';
+import type { ReadableStream as WebReadableStream } from 'node:stream/web';
+
+/**
+ * Where a PDF can come from.
+ * A stream is read to the end before Ghostscript runs.
+ */
+export type PdfSource =
+  | string
+  | Buffer
+  | Uint8Array
+  | ArrayBuffer
+  | Readable
+  | WebReadableStream<Uint8Array>;
+
 export const VALID_RESOLUTIONS = [
   'screen',
   'ebook',
@@ -8,8 +23,65 @@ export const VALID_RESOLUTIONS = [
 
 export type Resolution = (typeof VALID_RESOLUTIONS)[number];
 
+/**
+ * `auto` is not a Ghostscript preset. `compress` turns it into
+ * `screen`, `ebook`, or `printer` after `analyze`.
+ */
+export type ResolutionSetting = Resolution | 'auto';
+
+export type PdfKind = 'scanned' | 'vector' | 'mixed';
+
+/**
+ * What a PDF is made of. `estimatedGain` is a rough guess of how much
+ * compression might save, from 0 to 1, not a measured result.
+ */
+export type PdfAnalysis = {
+  pages: number;
+  images: number;
+  /** Highest image DPI found, or null when the PDF has no images. */
+  maxImageDpi: number | null;
+  fonts: number;
+  kind: PdfKind;
+  estimatedGain: number;
+};
+
+export type AnalyzeOptions = {
+  gsModule?: string;
+  pdfPassword?: string;
+  timeout?: number;
+  signal?: AbortSignal;
+};
+
+/**
+ * Document info written onto the compressed PDF.
+ * Omitted fields are left as they are, unless metadata is being cleared.
+ */
+export type PdfMetadata = {
+  title?: string;
+  author?: string;
+  subject?: string;
+  keywords?: string;
+};
+
+/**
+ * PDF/A level Ghostscript can write. Only conformance `b` exists here.
+ */
+export type PdfaLevel = '1b' | '2b' | '3b';
+
 export type Options = {
+  /**
+   * PDF compatibility level from 1.0 to 2.0. Default is `1.4`.
+   * When `pdfa` is set and this is omitted, `1b` uses `1.4` and
+   * `2b` / `3b` use `1.7`. A value that does not match `pdfa` is rejected.
+   */
   compatibilityLevel?: number;
+  /**
+   * Write a PDF/A file in the same Ghostscript pass. Omitted by default.
+   * `1b` is PDF 1.4. `2b` and `3b` are PDF 1.7. Color is converted to RGB.
+   * Features that cannot be kept are dropped. Ghostscript's own producer,
+   * dates, and PDF/A identification block stay.
+   */
+  pdfa?: PdfaLevel;
   /**
    * Can be
    *
@@ -23,9 +95,12 @@ export type Options = {
    *
    * `default` selects output intended to be useful across a wide variety of uses, possibly at the expense of a larger output file.
    *
-   * Default is `ebook`
+   * Default is `ebook`.
+   *
+   * `auto` looks at the PDF and picks `screen` (scanned), `ebook` (mixed),
+   * or `printer` (vector). It is never sent to Ghostscript.
    */
-  resolution?: Resolution;
+  resolution?: ResolutionSetting;
   /**
    * Set quality of pdf images (DPI).
    * Must be between 1 and 600.
@@ -46,14 +121,71 @@ export type Options = {
    * Remove password of a protected pdf, after compression
    */
   removePasswordAfterCompression?: boolean;
+  /**
+   * How long to wait for Ghostscript, in milliseconds.
+   * Default is 120000 (2 minutes).
+   */
+  timeout?: number;
+  /**
+   * Cancels the Ghostscript process when aborted.
+   */
+  signal?: AbortSignal;
+  /**
+   * When true, return the original PDF if Ghostscript output is larger
+   * than or equal to the input. Default is `false`.
+   */
+  returnOriginalIfLarger?: boolean;
+  /**
+   * Write the compressed PDF to this path instead of returning the bytes.
+   * Ghostscript writes directly to the file so the result is not loaded
+   * into memory.
+   */
+  output?: string;
+  /**
+   * Maximum compressed size in bytes. When set, tries up to 6 preset/DPI
+   * combinations and returns the first result that fits, or the smallest
+   * attempt if none fit.
+   */
+  targetSize?: number;
+  /**
+   * Clear title, author, subject, keywords, and creator on the compressed PDF.
+   * Default is `false`. Ghostscript still writes its own producer and dates.
+   */
+  stripMetadata?: boolean;
+  /**
+   * Replace document info on the compressed PDF.
+   * With `stripMetadata` or `sanitize`, fields you omit are cleared.
+   */
+  setMetadata?: PdfMetadata;
+  /**
+   * Clear document info, including the extra metadata block Ghostscript
+   * rebuilds from that info. Does not remove links, forms, or annotations.
+   * Default is `false`.
+   */
+  sanitize?: boolean;
+  /**
+   * Pages to keep, numbered from 1. Example: `1-3,5`.
+   * Omitted by default, so the whole PDF is compressed.
+   * The written order is the output order, including a backwards range such as `5-1`.
+   */
+  pages?: string;
+};
+
+/**
+ * Options for an HTTP upload handler.
+ * `bodyLimit` is the maximum request body in bytes.
+ * Fastify uses it as the route limit. Next.js defaults to 20 MiB
+ * when it is omitted. Express still applies the `express.raw` limit
+ * while it reads the body; `bodyLimit` is checked again on that buffer.
+ */
+export type UploadOptions = Options & {
+  bodyLimit?: number;
 };
 
 /**
  * Result of a PDF compression operation.
  */
 export type CompressResult = {
-  /** The compressed PDF as a Buffer */
-  buffer: Buffer;
   /** Original file size in bytes */
   originalSize: number;
   /** Compressed file size in bytes */
@@ -61,6 +193,22 @@ export type CompressResult = {
   /** Compression ratio (e.g., 0.65 means 35% smaller) */
   compressionRatio: number;
   /** Time taken in milliseconds */
+  duration: number;
+};
+
+/**
+ * Result when `output` is set: metadata plus the absolute output path.
+ */
+export type CompressFileResult = CompressResult & {
+  /** Absolute path written by compression */
+  output: string;
+};
+
+/**
+ * One compressed file per page. `files` are absolute paths.
+ */
+export type SplitResult = {
+  files: string[];
   duration: number;
 };
 

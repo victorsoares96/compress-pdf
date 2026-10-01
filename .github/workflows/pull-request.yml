@@ -34,6 +34,9 @@ jobs:
       - name: Type Check
         run: yarn type-check
 
+      - name: Build
+        run: yarn build
+
       - name: Unit Testing
         run: yarn test:coverage
 
@@ -43,9 +46,6 @@ jobs:
           token: ${{secrets.CODECOV_TOKEN}} # not required for public repos
           directory: coverage
           fail_ci_if_error: true
-
-      - name: Build
-        run: yarn build
 
       - id: publish
         uses: JS-DevTools/npm-publish@v4
