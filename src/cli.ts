@@ -2,10 +2,12 @@
 import { parseArgs } from 'node:util';
 import { pipeline } from 'node:stream/promises';
 import fs from 'fs';
+import path from 'path';
 import compress, { compressStream } from '@/compress';
 import split from '@/split';
 import {
   VALID_RESOLUTIONS,
+  type Options,
   type PdfMetadata,
   type PdfaLevel,
   type ResolutionSetting,
@@ -24,6 +26,8 @@ Required:
   -o, --output <path>        Where to write. Use %d for one file per page, or - for stdout
 
 Options:
+  --batch <directory>        Compress each PDF in that folder, without joining.
+                             -o must be a different directory. Not with --file
   -r, --resolution <preset>  screen | ebook | printer | prepress | default | auto
                              (default: ebook). auto picks screen, ebook, or printer
   --pages <list>             Pages to keep, such as 1-3,5
@@ -60,6 +64,7 @@ Examples:
   npx compress-pdf -f input.pdf -o page-%d.pdf --pages 1-3
   npx compress-pdf -f - -o compressed.pdf < input.pdf
   npx compress-pdf -f input.pdf -o - > compressed.pdf
+  npx compress-pdf --batch ./scans -o ./out
 `;
 
 function getStringValue(
@@ -112,6 +117,7 @@ const cliOptions = {
   author: { type: 'string' },
   subject: { type: 'string' },
   keywords: { type: 'string' },
+  batch: { type: 'string' },
   help: { type: 'boolean', short: 'h', default: false },
 } as const;
 
@@ -121,6 +127,184 @@ function parseCliArgs(userArgs: readonly string[]) {
     options: cliOptions,
     strict: true,
   });
+}
+
+function isPdfFile(directory: string, name: string): boolean {
+  if (!name.toLowerCase().endsWith('.pdf')) {
+    return false;
+  }
+  const full = path.join(directory, name);
+  return fs.existsSync(full) && fs.statSync(full).isFile();
+}
+
+function optionError(input: {
+  resolution?: string;
+  pdfa?: string;
+  pagesText?: string;
+}): string | undefined {
+  if (input.pagesText !== undefined) {
+    try {
+      parsePages(input.pagesText);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return `Error: ${message}\n\n${helpText}`;
+    }
+  }
+
+  if (input.pdfa !== undefined && !isPdfaLevel(input.pdfa)) {
+    return `Error: Invalid pdfa "${input.pdfa}". Must be one of: 1b, 2b, 3b`;
+  }
+
+  if (
+    input.resolution &&
+    input.resolution !== 'auto' &&
+    !VALID_RESOLUTIONS.includes(
+      input.resolution as (typeof VALID_RESOLUTIONS)[number]
+    )
+  ) {
+    return `Error: Invalid resolution "${input.resolution}". Must be one of: ${VALID_RESOLUTIONS.join(', ')}, auto`;
+  }
+
+  return undefined;
+}
+
+function commandOptions(input: {
+  resolution?: string;
+  compatibilityLevel?: string;
+  pdfa?: string;
+  imageQuality?: string;
+  gsModule?: string;
+  pdfPassword?: string;
+  removePasswordAfterCompression: boolean;
+  returnOriginalIfLarger: boolean;
+  targetSize?: string;
+  stripMetadata: boolean;
+  sanitize: boolean;
+  setMetadata?: PdfMetadata;
+  pagesText?: string;
+}): Options {
+  return {
+    resolution: input.resolution
+      ? (input.resolution as ResolutionSetting)
+      : undefined,
+    compatibilityLevel: input.compatibilityLevel
+      ? Number(input.compatibilityLevel)
+      : undefined,
+    pdfa: input.pdfa as PdfaLevel | undefined,
+    imageQuality: input.imageQuality ? Number(input.imageQuality) : undefined,
+    gsModule: input.gsModule,
+    pdfPassword: input.pdfPassword,
+    removePasswordAfterCompression: input.removePasswordAfterCompression,
+    returnOriginalIfLarger: input.returnOriginalIfLarger,
+    targetSize: input.targetSize ? Number(input.targetSize) : undefined,
+    stripMetadata: input.stripMetadata,
+    sanitize: input.sanitize,
+    setMetadata: input.setMetadata,
+    ...(input.pagesText !== undefined ? { pages: input.pagesText } : {}),
+  };
+}
+
+function batchUsage(message: string): number {
+  console.error(`${message}\n\nRun with --help for usage information.`);
+  return 1;
+}
+
+async function runBatch(
+  directory: string,
+  output: string,
+  options: Options
+): Promise<number> {
+  if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) {
+    return batchUsage(`Error: --batch must be a directory, got ${directory}`);
+  }
+
+  if (fs.existsSync(output) && !fs.statSync(output).isDirectory()) {
+    return batchUsage(
+      `Error: --output must be a directory when using --batch, got ${output}`
+    );
+  }
+
+  if (
+    fs.existsSync(output) &&
+    fs.realpathSync(directory) === fs.realpathSync(output)
+  ) {
+    return batchUsage(
+      'Error: --output must be a different directory from --batch'
+    );
+  }
+
+  const names = fs
+    .readdirSync(directory)
+    .filter((name) => isPdfFile(directory, name))
+    .sort();
+  if (names.length === 0) {
+    return batchUsage(`Error: no PDF files found in ${directory}`);
+  }
+
+  fs.mkdirSync(output, { recursive: true });
+
+  let failed = false;
+  let index = 0;
+  // One Ghostscript run per file. A failure is reported and the rest continue.
+  /* eslint-disable no-await-in-loop */
+  while (index < names.length) {
+    const name = names[index];
+    index += 1;
+    try {
+      const result = await compress(path.join(directory, name), {
+        ...options,
+        output: path.join(output, name),
+      });
+      const ratio = ((1 - result.compressionRatio) * 100).toFixed(1);
+      const originalKB = (result.originalSize / 1024).toFixed(1);
+      const compressedKB = (result.compressedSize / 1024).toFixed(1);
+      console.log(
+        `✅ ${name}: ${originalKB} KB → ${compressedKB} KB (${ratio}% smaller)`
+      );
+    } catch (error) {
+      failed = true;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`❌ ${name}: ${message}`);
+    }
+  }
+  /* eslint-enable no-await-in-loop */
+
+  return failed ? 1 : 0;
+}
+
+async function startBatch(input: {
+  directory: string;
+  files: string[];
+  output?: string;
+  resolution?: string;
+  pdfa?: string;
+  pagesText?: string;
+  options: Options;
+}): Promise<number> {
+  if (input.files.length > 0) {
+    return batchUsage('Error: --batch cannot be used with --file');
+  }
+  if (input.output === undefined) {
+    return batchUsage('Error: --output is required with --batch');
+  }
+  if (input.output === '-') {
+    return batchUsage('Error: --batch cannot write to stdout');
+  }
+  if (input.output.includes('%d')) {
+    return batchUsage('Error: --batch cannot be used with %d');
+  }
+
+  const invalid = optionError({
+    resolution: input.resolution,
+    pdfa: input.pdfa,
+    pagesText: input.pagesText,
+  });
+  if (invalid) {
+    console.error(invalid);
+    return 1;
+  }
+
+  return runBatch(input.directory, input.output, input.options);
 }
 
 /**
@@ -153,6 +337,35 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
   const pagesText = getStringValue(values.pages);
   const pdfPassword =
     getStringValue(values.pdfPassword) ?? process.env.COMPRESS_PDF_PASSWORD;
+  const batch = getStringValue(values.batch);
+  const options = commandOptions({
+    resolution,
+    compatibilityLevel,
+    pdfa,
+    imageQuality,
+    gsModule,
+    pdfPassword,
+    removePasswordAfterCompression:
+      values.removePasswordAfterCompression as boolean,
+    returnOriginalIfLarger: values.returnOriginalIfLarger as boolean,
+    targetSize,
+    stripMetadata: values.stripMetadata as boolean,
+    sanitize: values.sanitize as boolean,
+    setMetadata: metadataFromFlags(values),
+    pagesText,
+  });
+
+  if (batch !== undefined) {
+    return startBatch({
+      directory: batch,
+      files,
+      output,
+      resolution,
+      pdfa,
+      pagesText,
+      options,
+    });
+  }
 
   if (files.length === 0 || !output) {
     console.error(
@@ -175,14 +388,10 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
     return 1;
   }
 
-  if (pagesText !== undefined) {
-    try {
-      parsePages(pagesText);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`Error: ${message}\n\n${helpText}`);
-      return 1;
-    }
+  const invalid = optionError({ resolution, pdfa, pagesText });
+  if (invalid) {
+    console.error(invalid);
+    return 1;
   }
 
   const placeholders = output.split('%d').length - 1;
@@ -213,41 +422,8 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
     return 1;
   }
 
-  if (pdfa !== undefined && !isPdfaLevel(pdfa)) {
-    console.error(`Error: Invalid pdfa "${pdfa}". Must be one of: 1b, 2b, 3b`);
-    return 1;
-  }
-
-  if (
-    resolution &&
-    resolution !== 'auto' &&
-    !VALID_RESOLUTIONS.includes(
-      resolution as (typeof VALID_RESOLUTIONS)[number]
-    )
-  ) {
-    console.error(
-      `Error: Invalid resolution "${resolution}". Must be one of: ${VALID_RESOLUTIONS.join(', ')}, auto`
-    );
-    return 1;
-  }
-
   const shared = {
-    resolution: resolution ? (resolution as ResolutionSetting) : undefined,
-    compatibilityLevel: compatibilityLevel
-      ? Number(compatibilityLevel)
-      : undefined,
-    pdfa: pdfa as PdfaLevel | undefined,
-    imageQuality: imageQuality ? Number(imageQuality) : undefined,
-    gsModule,
-    pdfPassword,
-    removePasswordAfterCompression:
-      values.removePasswordAfterCompression as boolean,
-    returnOriginalIfLarger: values.returnOriginalIfLarger as boolean,
-    targetSize: targetSize ? Number(targetSize) : undefined,
-    stripMetadata: values.stripMetadata as boolean,
-    sanitize: values.sanitize as boolean,
-    setMetadata: metadataFromFlags(values),
-    ...(pagesText !== undefined ? { pages: pagesText } : {}),
+    ...options,
     ...(toStdout ? {} : { output }),
   };
 

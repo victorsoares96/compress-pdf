@@ -4,6 +4,7 @@
 
 ### ✨ New Features
 
+- `--batch <directory>` compresses each PDF in that folder on its own, without joining and without entering subfolders. `-o` is a different directory, and each result keeps the original file name. One bad file does not stop the others. The command exits 1 if any file failed.
 - `compress` accepts a `Uint8Array`, an `ArrayBuffer`, or a stream, and reads it fully before Ghostscript. `compressStream` returns the finished PDF as a stream after Ghostscript finishes, and rejects `output`. The CLI accepts `-f -` for stdin and `-o -` for stdout. The summary for stdout is written to stderr.
 - `pages` keeps the pages you list, numbered from 1, such as `1-3,5`. A backwards range such as `5-1` stays in that order. `compress([a, b])` joins files in that order. `split` writes one file per page when the output path contains `%d`. The CLI flags are `--pages`, repeated `-f`, and an `-o` path with `%d`.
 - `pdfa` writes a PDF/A-1b, PDF/A-2b, or PDF/A-3b file in the same Ghostscript pass. Omitted by default. `1b` uses PDF 1.4 and `2b` / `3b` use PDF 1.7. Color is converted to RGB. The CLI flag is `--pdfa <1b|2b|3b>`.
