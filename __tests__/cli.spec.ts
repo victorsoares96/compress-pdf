@@ -16,6 +16,7 @@ vi.mock('@/compress', () => ({
 
 vi.mock('@/split', () => ({
   default: vi.fn(),
+  SPLIT_CONCURRENCY_MAX: 8,
 }));
 
 const compressMock = vi.mocked(compress);
@@ -615,7 +616,19 @@ describe('runCli', () => {
         '0',
       ]);
       expect(zeroCode).toBe(1);
-      expect(errors.join('\n')).toContain('positive integer');
+      expect(errors.join('\n')).toContain('from 1 to 8');
+
+      errors.length = 0;
+      const hugeCode = await runCli([
+        '-f',
+        first,
+        '-o',
+        'page-%d.pdf',
+        '--concurrency',
+        '9',
+      ]);
+      expect(hugeCode).toBe(1);
+      expect(errors.join('\n')).toContain('from 1 to 8');
 
       errors.length = 0;
       const batchCode = await runCli([

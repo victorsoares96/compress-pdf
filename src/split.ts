@@ -15,6 +15,9 @@ import {
 
 const CONCURRENCY_CAP = 4;
 
+/** Highest `concurrency` a caller can set. The default stays at most 4. */
+export const SPLIT_CONCURRENCY_MAX = 8;
+
 function outputPattern(value: string): string {
   const placeholders = value.split('%d').length - 1;
   if (placeholders !== 1) {
@@ -37,10 +40,28 @@ function assertDistinctPages(numbers: readonly number[]): void {
   });
 }
 
-async function removeFiles(paths: readonly string[]): Promise<void> {
-  await Promise.all(
-    paths.map((filePath) => fs.promises.unlink(filePath).catch(() => undefined))
+function afterThisTurn(): Promise<void> {
+  return new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+}
+
+/**
+ * Delete a page file. Right after Ghostscript is killed the handle can
+ * still be open, so a busy delete is tried once more on the next turn.
+ */
+async function unlinkPage(filePath: string): Promise<void> {
+  const busy = await fs.promises.unlink(filePath).then(
+    () => false,
+    () => true
   );
+  if (!busy) return;
+  await afterThisTurn();
+  await fs.promises.unlink(filePath).catch(() => undefined);
+}
+
+async function removeFiles(paths: readonly string[]): Promise<void> {
+  await Promise.all(paths.map((filePath) => unlinkPage(filePath)));
 }
 
 function withoutSplitFields(options: SplitOptions): Options {
@@ -60,9 +81,9 @@ function defaultConcurrency(): number {
 
 function assertConcurrency(value: number | undefined): void {
   if (value === undefined) return;
-  if (!Number.isInteger(value) || value < 1) {
+  if (!Number.isInteger(value) || value < 1 || value > SPLIT_CONCURRENCY_MAX) {
     throw new CompressPdfError(
-      `concurrency must be a positive integer, got ${value}`
+      `concurrency must be an integer from 1 to ${SPLIT_CONCURRENCY_MAX}, got ${value}`
     );
   }
 }
@@ -198,7 +219,8 @@ async function compressPages(input: {
 /**
  * Write one compressed PDF per page.
  * `output` must contain `%d`, replaced with the source page number.
- * Pages run together up to `concurrency` (CPU count, capped at 4).
+ * Pages run together up to `concurrency`.
+ * The default is the CPU count, capped at 4. An explicit value is from 1 to 8.
  */
 async function split(
   file: PdfSource,

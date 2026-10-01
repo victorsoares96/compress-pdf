@@ -4,7 +4,7 @@ import { pipeline } from 'node:stream/promises';
 import fs from 'fs';
 import path from 'path';
 import compress, { compressStream } from '@/compress';
-import split from '@/split';
+import split, { SPLIT_CONCURRENCY_MAX } from '@/split';
 import {
   VALID_RESOLUTIONS,
   type Options,
@@ -32,7 +32,7 @@ Options:
                              (default: ebook). auto picks screen, ebook, or printer
   --pages <list>             Pages to keep, such as 1-3,5
   --concurrency <n>          Pages to compress at once when -o contains %d.
-                             Default is the CPU count, capped at 4
+                             From 1 to 8. Default is the CPU count, capped at 4
   --compatibilityLevel <n>   PDF compatibility level (default: 1.4)
   --pdfa <level>             Write PDF/A in the same pass: 1b, 2b, or 3b
   --imageQuality <n>         Image resolution/quality in DPI, 1-600 (default: 100)
@@ -438,10 +438,12 @@ export async function runCli(userArgs: readonly string[]): Promise<number> {
     concurrencyText === undefined ? undefined : Number(concurrencyText);
   if (
     concurrency !== undefined &&
-    (!Number.isInteger(concurrency) || concurrency < 1)
+    (!Number.isInteger(concurrency) ||
+      concurrency < 1 ||
+      concurrency > SPLIT_CONCURRENCY_MAX)
   ) {
     console.error(
-      `Error: concurrency must be a positive integer, got ${concurrencyText}\n\n${helpText}`
+      `Error: concurrency must be an integer from 1 to ${SPLIT_CONCURRENCY_MAX}, got ${concurrencyText}\n\n${helpText}`
     );
     return 1;
   }

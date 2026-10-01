@@ -130,7 +130,7 @@ const compressed = await compress('./scan.pdf', { resolution: 'auto' });
 
 `compressStream` returns a Node.js stream of the finished PDF, with the same size fields as a `Buffer` result. It starts only after Ghostscript finishes. `output` is rejected. Closing the stream removes the temporary file. With `returnOriginalIfLarger`, the stream can carry the original bytes.
 
-`split` writes one compressed file per page. The output path must contain `%d`, which is replaced with the source page number. A repeated page is rejected. Pages run together. `concurrency` is how many Ghostscript processes run at once. The default is the CPU count, capped at 4. `1` runs one page at a time. The returned paths stay in the requested page order. If one page fails, the others stop and every file from this split is removed:
+`split` writes one compressed file per page. The output path must contain `%d`, which is replaced with the source page number. A repeated page is rejected. Pages run together. `concurrency` is how many Ghostscript processes run at once, from 1 to 8. The default is the CPU count, capped at 4. `1` runs one page at a time. The returned paths stay in the requested page order. If one page fails, the others stop and every file from this split is removed. A delete that is still busy is tried once more:
 
 ```tsx
 import { split } from 'compress-pdf';
@@ -159,7 +159,7 @@ Options:
   --batch <directory>           Compress each PDF in that folder, without joining
   -r, --resolution <preset>     screen | ebook | printer | prepress | default | auto (default: ebook)
   --pages <list>                Pages to keep, such as 1-3,5
-  --concurrency <n>             Pages at once when -o contains %d (default: CPU count, max 4)
+  --concurrency <n>             Pages at once when -o contains %d (1-8, default: CPU count, max 4)
   --compatibilityLevel <n>      PDF compatibility level (default: 1.4)
   --pdfa <level>                Write PDF/A in the same pass: 1b, 2b, or 3b
   --imageQuality <n>            Image resolution in DPI, 1-600 (default: 100)
@@ -177,7 +177,7 @@ Options:
   -h, --help
 ```
 
-An unknown flag exits with code 1 and prints the error plus the help text. A resolution outside the list above is rejected before compression starts. `-r auto` is accepted. `--pages` uses the same page list as `pages`. Repeating `-f` joins files. An `-o` path that contains `%d` splits into one file per page. `--concurrency` is accepted only in that case. `1` runs one page at a time. The default is the CPU count, capped at 4. `-f -` reads stdin once. `-o -` writes the PDF to stdout and the summary to stderr. A library `output` of `'-'` is still a file named `-`.
+An unknown flag exits with code 1 and prints the error plus the help text. A resolution outside the list above is rejected before compression starts. `-r auto` is accepted. `--pages` uses the same page list as `pages`. Repeating `-f` joins files. An `-o` path that contains `%d` splits into one file per page. `--concurrency` is accepted only in that case, from 1 to 8. `1` runs one page at a time. The default is the CPU count, capped at 4. `-f -` reads stdin once. `-o -` writes the PDF to stdout and the summary to stderr. A library `output` of `'-'` is still a file named `-`.
 
 `--batch <directory>` compresses each PDF in that folder, not in subfolders, and does not join them. `-o` must be a different directory. Each result keeps the original file name. One bad file does not stop the others. The command exits 1 if any file failed. `--batch` cannot be combined with `-f`, with `-o -`, or with `%d` in `-o`.
 

@@ -207,7 +207,7 @@ export type CompressFileResult = CompressResult & {
 /**
  * Options for `split`. `concurrency` is how many pages Ghostscript
  * compresses at once. Omitted means the CPU count, capped at 4.
- * `1` runs one page at a time.
+ * An explicit value must be from 1 to 8. `1` runs one page at a time.
  */
 export type SplitOptions = Options & {
   concurrency?: number;
