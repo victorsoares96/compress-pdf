@@ -1,14 +1,28 @@
-import type pdfParser from 'pdf-parse';
+import { PDFParse } from 'pdf-parse';
 
-// https://gitlab.com/autokent/pdf-parse/-/issues/24
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const PDFParser = require('pdf-parse');
+export type ParsedPdf = {
+  numpages: number;
+  numrender: number;
+  text: string;
+};
 
-export async function parsePDF(
-  src: unknown,
-  options?: pdfParser.Options
-): Promise<pdfParser.Result> {
-  const data = await PDFParser(src, options);
+export async function parsePDF(src: {
+  data: Buffer | Uint8Array;
+  password?: string;
+}): Promise<ParsedPdf> {
+  const parser = new PDFParse({
+    data: src.data,
+    password: src.password,
+  });
 
-  return data;
+  try {
+    const result = await parser.getText();
+    return {
+      numpages: result.total,
+      numrender: result.pages.length,
+      text: result.text,
+    };
+  } finally {
+    await parser.destroy();
+  }
 }

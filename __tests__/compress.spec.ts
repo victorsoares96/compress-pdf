@@ -12,18 +12,10 @@ describe('compress', () => {
     );
 
     const originalFile = await fs.promises.readFile(originalFilePath);
-    const originalPDF = await testHelper.parsePDF({
-      data: originalFile,
-      url: 0,
-      range: '',
-    });
+    const originalPDF = await testHelper.parsePDF({ data: originalFile });
 
     const compressedFile = await compress(originalFilePath);
-    const compressedPDF = await testHelper.parsePDF({
-      data: compressedFile,
-      url: 0,
-      range: '',
-    });
+    const compressedPDF = await testHelper.parsePDF({ data: compressedFile });
 
     expect(compressedFile.length).toBeLessThan(originalFile.length);
     expect(compressedPDF.numpages).toEqual(originalPDF.numpages);
@@ -54,22 +46,16 @@ describe('compress', () => {
     );
 
     const originalFile = await fs.promises.readFile(originalFilePath);
-    // https://gitlab.com/autokent/pdf-parse/-/merge_requests/4
     const originalPDF = await testHelper.parsePDF({
       data: originalFile,
-      url: 0,
-      range: '',
       password: 'a17',
     });
 
     const compressedFile = await compress(originalFilePath, {
       pdfPassword: 'a17',
     });
-    // https://gitlab.com/autokent/pdf-parse/-/merge_requests/4
     const compressedPDF = await testHelper.parsePDF({
       data: compressedFile,
-      url: 0,
-      range: '',
       password: 'a17',
     });
 
