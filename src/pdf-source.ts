@@ -91,18 +91,34 @@ async function bytesFrom(source: Exclude<PdfSource, string>): Promise<Buffer> {
   return bytes;
 }
 
+function assertSafePdfPath(source: string): void {
+  if (source.trim() === '') {
+    throw new CompressPdfError('the PDF path must not be empty');
+  }
+  if (source.includes('\0')) {
+    throw new CompressPdfError('the PDF path contains invalid characters');
+  }
+}
+
 /**
  * Turn any accepted input into a file path.
  * Streams and byte views are written to a temporary file first.
  */
 export async function holdPdf(source: PdfSource): Promise<HeldPdf> {
   if (typeof source === 'string') {
-    if (!fs.existsSync(source)) {
+    assertSafePdfPath(source);
+    const resolved = path.resolve(source);
+    let filePath: string;
+    try {
+      filePath = await fs.promises.realpath(resolved);
+    } catch {
       throw new CompressPdfError(`File not found: ${source}`);
     }
-    const filePath = path.resolve(source);
-    const { size } = await fs.promises.stat(filePath);
-    return { filePath, temp: false, size };
+    const info = await fs.promises.stat(filePath);
+    if (!info.isFile()) {
+      throw new CompressPdfError(`Not a file: ${source}`);
+    }
+    return { filePath, temp: false, size: info.size };
   }
 
   const bytes = await bytesFrom(source);
