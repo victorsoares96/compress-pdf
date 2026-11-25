@@ -91,16 +91,30 @@ async function bytesFrom(source: Exclude<PdfSource, string>): Promise<Buffer> {
   return bytes;
 }
 
+function resolveInputPath(source: string): string {
+  const root = path.resolve(process.env.COMPRESS_PDF_INPUT_ROOT ?? process.cwd());
+  const filePath = path.resolve(root, source);
+  const relative = path.relative(root, filePath);
+  if (
+    relative === '..' ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    throw new CompressPdfError('input file path is outside the allowed root');
+  }
+  return filePath;
+}
+
 /**
  * Turn any accepted input into a file path.
  * Streams and byte views are written to a temporary file first.
  */
 export async function holdPdf(source: PdfSource): Promise<HeldPdf> {
   if (typeof source === 'string') {
-    if (!fs.existsSync(source)) {
+    const filePath = resolveInputPath(source);
+    if (!fs.existsSync(filePath)) {
       throw new CompressPdfError(`File not found: ${source}`);
     }
-    const filePath = path.resolve(source);
     const { size } = await fs.promises.stat(filePath);
     return { filePath, temp: false, size };
   }
